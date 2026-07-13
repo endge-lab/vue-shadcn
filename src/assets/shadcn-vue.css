@@ -1,0 +1,274 @@
+.endge-shadcn-text,
+.endge-shadcn-datetime,
+.endge-shadcn-number,
+.endge-shadcn-icon,
+.endge-shadcn-badge,
+.endge-shadcn-checkbox-field,
+.endge-shadcn-input,
+.endge-shadcn-textarea,
+.endge-shadcn-select-field {
+  box-sizing: border-box;
+  font: inherit;
+}
+
+.endge-shadcn-text {
+  color: var(--foreground, #18181b);
+}
+
+.endge-shadcn-datetime {
+  color: var(--muted-foreground, #71717a);
+  font-variant-numeric: tabular-nums;
+}
+
+.endge-shadcn-number {
+  color: var(--foreground, #18181b);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.endge-shadcn-icon {
+  align-items: center;
+  color: var(--muted-foreground, #71717a);
+  display: inline-flex;
+  font-size: 0.75rem;
+  justify-content: center;
+  line-height: 1;
+}
+
+.endge-shadcn-badge {
+  align-items: center;
+  background: var(--primary, #18181b);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--primary-foreground, #fafafa);
+  display: inline-flex;
+  font-size: 0.75rem;
+  font-weight: 600;
+  gap: 0.25rem;
+  line-height: 1;
+  min-height: 1.375rem;
+  padding: 0.2rem 0.55rem;
+  white-space: nowrap;
+}
+
+.endge-shadcn-badge[data-tone="muted"],
+.endge-shadcn-badge[data-tone="neutral"] {
+  background: var(--secondary, #f4f4f5);
+  border-color: var(--border, #e4e4e7);
+  color: var(--secondary-foreground, #27272a);
+}
+
+.endge-shadcn-badge[data-tone="success"] {
+  background: color-mix(in srgb, #16a34a 14%, var(--background, #fff));
+  border-color: color-mix(in srgb, #16a34a 30%, transparent);
+  color: #15803d;
+}
+
+.endge-shadcn-badge[data-tone="warning"] {
+  background: color-mix(in srgb, #d97706 14%, var(--background, #fff));
+  border-color: color-mix(in srgb, #d97706 30%, transparent);
+  color: #b45309;
+}
+
+.endge-shadcn-badge[data-tone="danger"],
+.endge-shadcn-badge[data-tone="error"] {
+  background: color-mix(in srgb, var(--destructive, #dc2626) 14%, var(--background, #fff));
+  border-color: color-mix(in srgb, var(--destructive, #dc2626) 30%, transparent);
+  color: var(--destructive, #dc2626);
+}
+
+.endge-shadcn-dot {
+  background: var(--primary, #18181b);
+  border: 2px solid color-mix(in srgb, var(--primary, #18181b) 16%, var(--background, #fff));
+  border-radius: 999px;
+  box-sizing: border-box;
+  display: inline-block;
+  flex: none;
+}
+
+.endge-shadcn-dot[data-tone="success"] {
+  background: #16a34a;
+}
+
+.endge-shadcn-dot[data-tone="warning"] {
+  background: #d97706;
+}
+
+.endge-shadcn-dot[data-tone="danger"],
+.endge-shadcn-dot[data-tone="error"] {
+  background: var(--destructive, #dc2626);
+}
+
+.endge-shadcn-divider {
+  background: var(--border, #e4e4e7);
+  flex: none;
+}
+
+.endge-shadcn-divider[data-orientation="horizontal"] {
+  height: 1px;
+  width: 100%;
+}
+
+.endge-shadcn-divider[data-orientation="vertical"] {
+  align-self: stretch;
+  min-height: 1rem;
+  width: 1px;
+}
+
+.endge-shadcn-input,
+.endge-shadcn-textarea,
+.endge-shadcn-select {
+  background: var(--background, #fff);
+  border: 1px solid var(--input, var(--border, #d4d4d8));
+  border-radius: var(--radius, 0.625rem);
+  color: var(--foreground, #18181b);
+  font-size: 0.875rem;
+  outline: none;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+.endge-shadcn-input {
+  height: 2.5rem;
+  min-width: 10rem;
+  padding: 0 0.75rem;
+}
+
+.endge-shadcn-textarea {
+  line-height: 1.5;
+  min-height: 5.5rem;
+  min-width: 14rem;
+  padding: 0.625rem 0.75rem;
+  resize: vertical;
+}
+
+.endge-shadcn-input::placeholder,
+.endge-shadcn-textarea::placeholder,
+.endge-shadcn-select:invalid {
+  color: var(--muted-foreground, #71717a);
+}
+
+.endge-shadcn-input:focus-visible,
+.endge-shadcn-textarea:focus-visible,
+.endge-shadcn-select:focus-visible {
+  border-color: var(--ring, var(--primary, #18181b));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring, var(--primary, #18181b)) 18%, transparent);
+}
+
+.endge-shadcn-input:disabled,
+.endge-shadcn-textarea:disabled,
+.endge-shadcn-select:disabled,
+.endge-shadcn-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.endge-shadcn-input[readonly],
+.endge-shadcn-textarea[readonly] {
+  background: var(--muted, #f4f4f5);
+}
+
+.endge-shadcn-checkbox-field {
+  align-items: center;
+  color: var(--foreground, #18181b);
+  cursor: pointer;
+  display: inline-flex;
+  gap: 0.625rem;
+  line-height: 1.25rem;
+  user-select: none;
+}
+
+.endge-shadcn-checkbox {
+  align-items: center;
+  appearance: none;
+  background: var(--background, #fff);
+  border: 1px solid var(--input, var(--border, #d4d4d8));
+  border-radius: calc(var(--radius, 0.625rem) - 0.25rem);
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: none;
+  height: 1rem;
+  justify-content: center;
+  margin: 0;
+  outline: none;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+  width: 1rem;
+}
+
+.endge-shadcn-checkbox::after {
+  border-color: var(--primary-foreground, #fff);
+  border-style: solid;
+  border-width: 0 1.5px 1.5px 0;
+  content: '';
+  display: none;
+  height: 0.5rem;
+  margin-top: -0.1rem;
+  transform: rotate(45deg);
+  width: 0.25rem;
+}
+
+.endge-shadcn-checkbox:checked {
+  background: var(--primary, #18181b);
+  border-color: var(--primary, #18181b);
+}
+
+.endge-shadcn-checkbox:checked::after {
+  display: block;
+}
+
+.endge-shadcn-checkbox:focus-visible {
+  border-color: var(--ring, var(--primary, #18181b));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring, var(--primary, #18181b)) 18%, transparent);
+}
+
+.endge-shadcn-checkbox-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.endge-shadcn-select-field {
+  display: inline-grid;
+  min-width: 12rem;
+  position: relative;
+}
+
+.endge-shadcn-select-field::after {
+  border-bottom: 1.5px solid var(--muted-foreground, #71717a);
+  border-right: 1.5px solid var(--muted-foreground, #71717a);
+  content: '';
+  height: 0.4rem;
+  pointer-events: none;
+  position: absolute;
+  right: 0.9rem;
+  top: 50%;
+  transform: translateY(-65%) rotate(45deg);
+  width: 0.4rem;
+}
+
+.endge-shadcn-select-field[data-multiple]::after {
+  display: none;
+}
+
+.endge-shadcn-select {
+  appearance: none;
+  height: 2.5rem;
+  padding: 0 2.5rem 0 0.75rem;
+  width: 100%;
+}
+
+.endge-shadcn-select[multiple] {
+  height: auto;
+  min-height: 6rem;
+  padding: 0.375rem;
+}
+
+.endge-shadcn-select[multiple] option {
+  border-radius: calc(var(--radius, 0.625rem) - 0.25rem);
+  padding: 0.45rem 0.55rem;
+}
+
