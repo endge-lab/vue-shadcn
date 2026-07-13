@@ -1,4 +1,5 @@
 import type {
+  FilterViewRuntimeHost,
   RComponentSFC_IR_ElementNode,
   RComponentSFC_IR_Tag,
   RComponentSFC_IR_Value,
@@ -12,12 +13,13 @@ import {
 } from '@endge/core'
 import {
   createSFCVueRenderContext,
+  EndgeFilterRenderer,
   EndgeVueModule,
   NativeVueSFCAdapter,
   renderSFCNode,
   SFC_Renderer,
 } from '@endge/vue'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, h, isVNode, nextTick, type VNode } from 'vue'
 
 import { EndgeShadcnVueModule } from '@/domain/core/endge-shadcn-vue'
@@ -103,6 +105,16 @@ describe('ShadcnVueSFCAdapter', () => {
       options,
     })
     expect(selectedOptions(multiple.root)).toEqual(['1', 'true'])
+    expect(multiple.root.querySelector('.endge-shadcn-multiselect-content')).toBeNull()
+
+    const trigger = multiple.root.querySelector('.endge-shadcn-multiselect-trigger') as HTMLButtonElement
+    trigger.click()
+    await nextTick()
+
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    expect(multiple.root.querySelector('.endge-shadcn-multiselect-content')).not.toBeNull()
+    expect(multiple.root.querySelectorAll('.endge-shadcn-multiselect-option')).toHaveLength(options.length)
+    expect(multiple.root.querySelectorAll('.endge-shadcn-multiselect-option[aria-selected="true"]')).toHaveLength(2)
     multiple.unmount()
   })
 
@@ -169,6 +181,108 @@ describe('ShadcnVueSFCAdapter', () => {
     Endge.uiRegistry.adapters.activate('shadcn-vue')
     await nextTick()
     expect(root.querySelector('input')?.classList.contains('endge-shadcn-input')).toBe(true)
+    app.unmount()
+  })
+
+  it('renders the same generated Filter view through native and shadcn adapters', async () => {
+    Endge.uiRegistry.adapters.register(NativeVueSFCAdapter)
+    Endge.uiRegistry.adapters.activate('native-vue')
+    const setValue = vi.fn().mockResolvedValue(undefined)
+    const runtime = {
+      getRenderModel: () => ({
+        implementation: { kind: 'generated' as const },
+        props: {
+          showLabels: true,
+          labels: {
+            search: 'Поиск рейса',
+            airports: 'Аэропорты',
+          },
+        },
+        fields: [
+          {
+            key: 'search', type: 'String' as const, optional: false, array: false,
+            control: { type: 'Input' as const }, value: 'SU', options: [],
+          },
+          {
+            key: 'airports', type: 'String' as const, optional: false, array: true,
+            control: { type: 'Select' as const }, value: ['SVO'],
+            options: [
+              { value: 'SVO', label: 'Шереметьево' },
+              { value: 'LED', label: 'Пулково' },
+            ],
+          },
+          {
+            key: 'cancelled', type: 'Boolean' as const, optional: false, array: false,
+            control: { type: 'Checkbox' as const }, value: true, options: [],
+          },
+        ],
+      }),
+      setValue,
+      on: vi.fn(),
+      off: vi.fn(),
+    } as unknown as FilterViewRuntimeHost
+    const root = document.createElement('div')
+    const app = createApp({ render: () => h(EndgeFilterRenderer, { runtime }) })
+    app.mount(root)
+    await nextTick()
+
+    expect(root.querySelector('input')?.classList.contains('endge-shadcn-input')).toBe(false)
+    expect(root.querySelector('select')?.multiple).toBe(true)
+    expect(root.querySelector('input[type="checkbox"]')?.checked).toBe(true)
+    expect([...root.querySelectorAll('.endge-filter-field__label')].map(node => node.textContent)).toEqual([
+      'Поиск рейса',
+      'Аэропорты',
+    ])
+
+    Endge.uiRegistry.adapters.activate('shadcn-vue')
+    await nextTick()
+    expect(root.querySelector('input')?.classList.contains('endge-shadcn-input')).toBe(true)
+    expect(root.querySelector('.endge-shadcn-select')).not.toBeNull()
+    expect(root.querySelector('.endge-shadcn-checkbox')).not.toBeNull()
+    expect(root.textContent).toContain('Поиск рейса')
+
+    const multiselectTrigger = root.querySelector('.endge-shadcn-multiselect-trigger') as HTMLButtonElement
+    multiselectTrigger.click()
+    await nextTick()
+    const pulkovo = [...root.querySelectorAll<HTMLButtonElement>('.endge-shadcn-multiselect-option')]
+      .find(option => option.textContent?.includes('Пулково'))
+    pulkovo?.click()
+    await nextTick()
+    expect(setValue).toHaveBeenCalledWith('airports', ['SVO', 'LED'])
+
+    const input = root.querySelector('input[type="text"]') as HTMLInputElement
+    input.value = 'S7'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await nextTick()
+    expect(setValue).toHaveBeenCalledWith('search', 'S7')
+
+    app.unmount()
+  })
+
+  it('allows the generated Filter view to hide labels above fields', async () => {
+    const runtime = {
+      getRenderModel: () => ({
+        implementation: { kind: 'generated' as const },
+        props: {
+          showLabels: false,
+          labels: { search: 'Поиск рейса' },
+        },
+        fields: [{
+          key: 'search', type: 'String' as const, optional: false, array: false,
+          control: { type: 'Input' as const }, value: 'SU', options: [],
+        }],
+      }),
+      setValue: vi.fn().mockResolvedValue(undefined),
+      on: vi.fn(),
+      off: vi.fn(),
+    } as unknown as FilterViewRuntimeHost
+    const root = document.createElement('div')
+    const app = createApp({ render: () => h(EndgeFilterRenderer, { runtime }) })
+    app.mount(root)
+    await nextTick()
+
+    expect(root.querySelector('.endge-filter-field__label')).toBeNull()
+    expect(root.querySelector('input[type="text"]')).not.toBeNull()
     app.unmount()
   })
 })

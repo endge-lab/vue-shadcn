@@ -153,7 +153,7 @@ export const ShadcnVueRender_Select: SFCVueRenderAdapterFunction = (input) => {
     class: ['endge-sfc-select', input.props.class],
     options: normalizeOptions(input.props.options),
     selectedValues: normalizeSelectedValues(input.props.value, multiple),
-    placeholder: multiple ? undefined : toOptionalString(input.props.placeholder),
+    placeholder: toOptionalString(input.props.placeholder),
     multiple,
     readonly: input.props.readonly === true,
     disabled: input.props.disabled === true,
@@ -263,4 +263,3 @@ function normalizeGap(value: unknown): string | undefined {
 function normalizeTone(value: unknown): string | undefined {
   return value == null ? undefined : String(value).trim().toLowerCase()
 }
-
