@@ -1,11 +1,11 @@
 import type {
+  EndgeWorkspaceDefinition,
   FilterViewRuntimeHost,
   RComponentSFC_IR_ElementNode,
   RComponentSFC_IR_Tag,
   RComponentSFC_IR_Value,
 } from '@endge/core'
 import {
-  DEFAULT_ENDGE_WORKSPACE,
   ENDGE_SFC_RENDER_ADAPTER_PROTOCOL,
   ENDGE_SFC_RENDER_ADAPTER_PROTOCOL_VERSION,
   ENDGE_SFC_RENDER_ADAPTER_REQUIRED_KEYS,
@@ -28,9 +28,22 @@ import {
   ShadcnVueSFCAdapter,
 } from '@/model/render/sfc/shadcn-vue-sfc-adapter'
 
+const TEST_WORKSPACE: EndgeWorkspaceDefinition = {
+  identity: 'workspace-test',
+  displayName: 'Test Workspace',
+  vars: [],
+  locales: [{ code: 'en', displayName: 'English', shortLabel: 'EN' }],
+  defaultLocale: 'en',
+  fallbackLocale: 'en',
+  defaultAuthProfileIdentity: null,
+  sfcAdapterIds: ['native-vue', 'shadcn-vue'],
+  defaultSfcAdapterId: 'shadcn-vue',
+}
+
 describe('ShadcnVueSFCAdapter', () => {
   beforeEach(() => {
     Endge.uiRegistry.adapters.reset()
+    Endge.workspace.apply(TEST_WORKSPACE)
     new EndgeShadcnVueModule().setup()
     Endge.uiRegistry.adapters.activate({
       id: SHADCN_VUE_SFC_ADAPTER_ID,
@@ -43,7 +56,7 @@ describe('ShadcnVueSFCAdapter', () => {
 
   afterEach(() => {
     Endge.uiRegistry.adapters.reset()
-    Endge.workspace.apply(DEFAULT_ENDGE_WORKSPACE)
+    Endge.workspace.apply(TEST_WORKSPACE)
   })
 
   it('registers the complete Vue adapter contract', () => {
@@ -136,7 +149,7 @@ describe('ShadcnVueSFCAdapter', () => {
     const vueModule = new EndgeVueModule()
     vueModule.setup()
     Endge.workspace.apply({
-      ...DEFAULT_ENDGE_WORKSPACE,
+      ...TEST_WORKSPACE,
       sfcAdapterIds: ['native-vue', 'shadcn-vue'],
       defaultSfcAdapterId: 'native-vue',
     })
@@ -144,7 +157,7 @@ describe('ShadcnVueSFCAdapter', () => {
     vueModule.start()
 
     Endge.workspace.apply({
-      ...DEFAULT_ENDGE_WORKSPACE,
+      ...TEST_WORKSPACE,
       sfcAdapterIds: ['native-vue', 'shadcn-vue'],
       defaultSfcAdapterId: 'shadcn-vue',
     })
