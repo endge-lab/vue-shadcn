@@ -92,6 +92,26 @@ export const ShadcnVueRender_Flex: SFCVueRenderAdapterFunction = (input) => {
   }, input.children)
 }
 
+export const ShadcnVueRender_Grid: SFCVueRenderAdapterFunction = (input) => {
+  return input.h('div', {
+    ...input.attrs,
+    class: ['endge-sfc-grid', 'endge-shadcn-grid', input.props.class],
+    style: {
+      ...(input.attrs.style as Record<string, string> | undefined),
+      display: 'grid',
+      gridTemplateColumns: normalizeTracks(input.props.columns, 12),
+      gridTemplateRows: normalizeTracks(input.props.rows),
+      gridAutoRows: normalizeLength(input.props.autoRows),
+      gridAutoFlow: normalizeAutoFlow(input.props.autoFlow),
+      gap: normalizeGap(input.props.gap),
+      columnGap: normalizeGap(input.props.columnGap),
+      rowGap: normalizeGap(input.props.rowGap),
+      alignItems: normalizeAlignment(input.props.align),
+      justifyItems: normalizeAlignment(input.props.justify),
+    },
+  }, input.children)
+}
+
 export const ShadcnVueRender_Divider: SFCVueRenderAdapterFunction = (input) => {
   const vertical = input.props.vertical === true || input.props.orientation === 'vertical'
 
@@ -258,6 +278,42 @@ function normalizeGap(value: unknown): string | undefined {
   if (source === '') return undefined
   if (/^-?\d+(\.\d+)?$/.test(source)) return `${Number(source) * 4}px`
   return source
+}
+
+function normalizeLength(value: unknown): string | undefined {
+  if (value == null || value === false) return undefined
+  if (typeof value === 'number') return `${value}px`
+
+  const source = String(value).trim()
+  if (source === '') return undefined
+  if (/^-?\d+(\.\d+)?$/.test(source)) return `${Number(source)}px`
+  return source
+}
+
+function normalizeTracks(value: unknown, fallback?: number): string | undefined {
+  if (value == null || value === false || String(value).trim() === '') {
+    return fallback == null ? undefined : `repeat(${fallback}, minmax(0, 1fr))`
+  }
+
+  const source = String(value).trim()
+  if (/^\d+$/.test(source) && Number(source) > 0) {
+    return `repeat(${Number(source)}, minmax(0, 1fr))`
+  }
+  return source
+}
+
+function normalizeAutoFlow(value: unknown): string | undefined {
+  const source = String(value ?? '').trim()
+  return ['row', 'column', 'row dense', 'column dense'].includes(source)
+    ? source
+    : undefined
+}
+
+function normalizeAlignment(value: unknown): string | undefined {
+  const source = String(value ?? '').trim()
+  return ['start', 'center', 'end', 'stretch'].includes(source)
+    ? source
+    : undefined
 }
 
 function normalizeTone(value: unknown): string | undefined {

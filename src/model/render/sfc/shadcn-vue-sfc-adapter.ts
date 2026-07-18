@@ -12,6 +12,7 @@ import {
   ShadcnVueRender_Divider,
   ShadcnVueRender_Dot,
   ShadcnVueRender_Flex,
+  ShadcnVueRender_Grid,
   ShadcnVueRender_Icon,
   ShadcnVueRender_Input,
   ShadcnVueRender_Number,
@@ -37,6 +38,7 @@ export const ShadcnVueSFCAdapter: SFCVueRenderAdapter = {
     Dot: ShadcnVueRender_Dot,
     Box: ShadcnVueRender_Box,
     Flex: ShadcnVueRender_Flex,
+    Grid: ShadcnVueRender_Grid,
     Divider: ShadcnVueRender_Divider,
     Input: ShadcnVueRender_Input,
     Textarea: ShadcnVueRender_Textarea,
@@ -44,4 +46,3 @@ export const ShadcnVueSFCAdapter: SFCVueRenderAdapter = {
     Select: ShadcnVueRender_Select,
   },
 }
-
