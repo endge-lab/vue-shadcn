@@ -32,6 +32,8 @@ export interface EndgeShadcnTableColumn {
   styleSurfaces: SFCTableColumnStyleSurfaces
 }
 
+export type EndgeShadcnTablePaging = 'pages' | 'virtual'
+
 export interface EndgeShadcnTableProps {
   boundaryId: string
   tableId: string
@@ -46,6 +48,10 @@ export interface EndgeShadcnTableProps {
   defaultSort: ComponentSFCTableSortStateItem[]
   defaultPin: ComponentSFCTableColumnPinStateItem[]
   rowSize: number
+  paging?: EndgeShadcnTablePaging
+  pageSize?: number
+  pageSizes?: number[]
+  lazy?: boolean
   renderVersion: number
   renderCell: (
     column: EndgeShadcnTableColumn,

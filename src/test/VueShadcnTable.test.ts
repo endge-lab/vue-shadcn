@@ -32,6 +32,14 @@ defineProps<{
     </Column>
   </Table>
 </template>`
+const LAZY_TABLE_SOURCE = TABLE_SOURCE.replace(
+  'sort-mode="multiple"',
+  'sort-mode="multiple" lazy page-size="1" page-sizes="1,2,5"',
+)
+const VIRTUAL_TABLE_SOURCE = TABLE_SOURCE.replace(
+  'sort-mode="multiple"',
+  'sort-mode="multiple" paging="virtual"',
+)
 
 const ROWS = [
   { id: '2', flight: 'SU 200', gate: 'B12' },
@@ -121,10 +129,60 @@ describe('VueShadcnRender_Table', () => {
     expect(runtimeState.set).toHaveBeenCalledWith('table:flights', 'visibility', { gate: false })
     mounted.unmount()
   })
+
+  it('recognizes lazy and paginates materialized rows with declarative page settings', async () => {
+    const mounted = await mountTable(null, LAZY_TABLE_SOURCE)
+
+    expect(mounted.root.querySelector('.endge-shadcn-table')?.getAttribute('data-lazy')).toBe('true')
+    expect(readFlights(mounted.root)).toEqual(['SU 200'])
+    expect(mounted.root.querySelector('.endge-shadcn-table__page-label')?.textContent).toContain('Page 1 of 2')
+    expect([...mounted.root.querySelectorAll('.endge-shadcn-table__page-size option')].map(option => option.textContent?.trim()))
+      .toEqual(['1', '2', '5'])
+
+    mounted.root.querySelector<HTMLButtonElement>('[aria-label="Next page"]')?.click()
+    await nextTick()
+
+    expect(readFlights(mounted.root)).toEqual(['SU 100'])
+    expect(mounted.root.querySelector('.endge-shadcn-table__page-label')?.textContent).toContain('Page 2 of 2')
+    mounted.unmount()
+  })
+
+  it('uses 10 rows per page by default', async () => {
+    const rows = Array.from({ length: 11 }, (_, index) => ({
+      id: String(index),
+      flight: `SU ${String(index).padStart(3, '0')}`,
+      gate: `A${index}`,
+    }))
+    const mounted = await mountTable(null, TABLE_SOURCE, rows)
+
+    expect(readFlights(mounted.root)).toHaveLength(10)
+    expect(mounted.root.querySelector<HTMLSelectElement>('.endge-shadcn-table__page-size select')?.value).toBe('10')
+    expect(mounted.root.querySelector('.endge-shadcn-table__page-label')?.textContent).toContain('Page 1 of 2')
+    mounted.unmount()
+  })
+
+  it('renders the complete local collection as one virtualized row model', async () => {
+    const rows = Array.from({ length: 11 }, (_, index) => ({
+      id: String(index),
+      flight: `SU ${String(index).padStart(3, '0')}`,
+      gate: `A${index}`,
+    }))
+    const mounted = await mountTable(null, VIRTUAL_TABLE_SOURCE, rows)
+    const table = mounted.root.querySelector<HTMLTableElement>('[data-virtualized="true"]')
+
+    expect(mounted.root.querySelector('.endge-shadcn-table')?.getAttribute('data-paging')).toBe('virtual')
+    expect(table?.dataset.pageRowCount).toBe('11')
+    expect(mounted.root.querySelector('.endge-shadcn-table__pagination')).toBeNull()
+    mounted.unmount()
+  })
 })
 
-async function mountTable(host: ComponentSFCRuntimeHost | null = null) {
-  const result = compileComponentSFC(TABLE_SOURCE)
+async function mountTable(
+  host: ComponentSFCRuntimeHost | null = null,
+  source = TABLE_SOURCE,
+  rows = ROWS,
+) {
+  const result = compileComponentSFC(source)
   if (!result.ir)
     throw new Error(`Table source failed to compile: ${JSON.stringify(result.diagnostics)}`)
 
@@ -134,7 +192,7 @@ async function mountTable(host: ComponentSFCRuntimeHost | null = null) {
     render: () => h(VueShadcnShell, { project: 'test', env: 'test' }, {
       default: () => h(SFC_Renderer, {
         ir: result.ir,
-        props: { rows: ROWS },
+        props: { rows },
         host,
       }),
     }),

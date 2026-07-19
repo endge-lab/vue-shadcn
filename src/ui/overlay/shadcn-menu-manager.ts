@@ -74,7 +74,7 @@ export function getExecutableShadcnMenuItems(): ContextMenuNodeDescriptor[] {
     return []
 
   return compactSeparators(menu.items.filter((item) => {
-    return item.kind === 'separator' || Endge.runtime.actions.canExecute(item.action, context)
+    return item.kind === 'separator' || Endge.runtime.actions.canExecute(item.action, context, item.input)
   }))
 }
 
@@ -83,7 +83,7 @@ export async function executeShadcnMenuItem(item: ContextMenuItemDescriptor): Pr
   if (!context)
     return
 
-  await Endge.runtime.actions.execute(item.action, context)
+  await Endge.runtime.actions.execute(item.action, context, item.input)
   closeShadcnMenu()
 }
 

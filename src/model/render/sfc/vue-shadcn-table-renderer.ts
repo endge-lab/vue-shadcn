@@ -18,7 +18,7 @@ import { renderSFCNodes } from '@/ui/render/sfc/SFCRender_Node'
 import { SFCRender_Base } from '@/ui/render/sfc/SFCRender_Base'
 import { normalizeSFCTableCellAlignment } from '@/ui/render/sfc/SFCRender_TableAlignment'
 
-import type { EndgeShadcnTableColumn } from '@/ui/table/table.types'
+import type { EndgeShadcnTableColumn, EndgeShadcnTablePaging } from '@/ui/table/table.types'
 import ShadcnSfcDataTable from '@/ui/table/ShadcnSfcDataTable.vue'
 
 /** Shadcn/TanStack implementation of the compound SFC Table tag. */
@@ -71,6 +71,10 @@ export const VueShadcnRender_Table: SFCVueRenderFunction = SFCRender_Base((input
       defaultSort: sortDescriptor.defaultSort,
       defaultPin: pinDescriptor.defaultPin,
       rowSize: normalizeNumber(input.props.rowSize, 40),
+      paging: normalizeTablePaging(input.props.paging),
+      pageSize: normalizeNumber(input.props['page-size'] ?? input.props.pageSize, 10),
+      pageSizes: normalizePageSizes(input.props['page-sizes'] ?? input.props.pageSizes),
+      lazy: input.props.lazy === true,
       renderVersion: input.context.renderVersion,
       renderCell: (
         column: EndgeShadcnTableColumn,
@@ -171,10 +175,27 @@ function normalizeNumber(value: unknown, fallback: number): number {
   return Number.isFinite(number) && number > 0 ? number : fallback
 }
 
+function normalizeTablePaging(value: unknown): EndgeShadcnTablePaging {
+  return String(value ?? '').trim().toLowerCase() === 'virtual' ? 'virtual' : 'pages'
+}
+
 function normalizeOptionalNumber(value: unknown): number | null {
   if (value == null || value === '') return null
   const number = Number(value)
   return Number.isFinite(number) && number > 0 ? number : null
+}
+
+function normalizePageSizes(value: unknown): number[] {
+  const source = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',')
+      : [10, 25, 50, 100]
+  const sizes = source
+    .map(Number)
+    .filter(size => Number.isFinite(size) && size > 0)
+    .map(Math.floor)
+  return [...new Set(sizes)].sort((left, right) => left - right)
 }
 
 function normalizeCssSize(value: unknown, fallback: string): string {

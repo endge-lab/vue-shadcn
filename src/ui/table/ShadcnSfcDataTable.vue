@@ -5,6 +5,7 @@ import type {
   ColumnOrderState,
   ColumnPinningState,
   ColumnSizingState,
+  PaginationState,
   Row,
   SortingState,
   Updater,
@@ -25,11 +26,20 @@ import type { CSSProperties } from 'vue'
 import {
   FlexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useVueTable,
 } from '@tanstack/vue-table'
 import { useVirtualizer } from '@tanstack/vue-virtual'
-import { ArrowDown, ArrowUp, ChevronsUpDown } from '@lucide/vue'
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronsUpDown,
+} from '@lucide/vue'
 import { Endge, TABLE_RUNTIME_ACTION_IDS } from '@endge/core'
 import {
   decorateSFCTableRowWindow,
@@ -58,7 +68,12 @@ import ShadcnTableColumnManager from './ShadcnTableColumnManager.vue'
 
 defineOptions({ name: 'EndgeShadcnSfcDataTable' })
 
-const props = defineProps<EndgeShadcnTableProps>()
+const props = withDefaults(defineProps<EndgeShadcnTableProps>(), {
+  paging: 'pages',
+  pageSize: 10,
+  pageSizes: () => [10, 25, 50, 100],
+  lazy: false,
+})
 const boundaryRegistry = inject(SFCVueBoundaryRegistryKey, null)
 const scrollRoot = ref<HTMLElement | null>(null)
 const baseRows = shallowRef(copyRows(props.source))
@@ -69,6 +84,7 @@ const columnPinning = ref<ColumnPinningState>(readInitialPinning())
 const columnOrder = ref<ColumnOrderState>(readTableState('order', props.columns.map(column => column.key)))
 const columnVisibility = ref<VisibilityState>(readTableState('visibility', {}))
 const columnSizing = ref<ColumnSizingState>(readTableState('sizing', {}))
+const pagination = ref<PaginationState>(readInitialPagination())
 const columnDefinitions = computed<ColumnDef<Record<string, unknown>>[]>(() => props.columns.map(column => ({
   id: column.key,
   accessorFn: row => row[column.key],
@@ -93,6 +109,7 @@ const table = useVueTable({
   getRowId: (row, index) => normalizeRowId(row[props.rowKey], index),
   getCoreRowModel: getCoreRowModel(),
   getSortedRowModel: getSortedRowModel(),
+  getPaginationRowModel: getPaginationRowModel(),
   enableMultiSort: props.sortMode === 'multiple',
   enableSortingRemoval: props.sortMode !== 'fixed',
   isMultiSortEvent: () => props.sortMode === 'multiple',
@@ -103,15 +120,28 @@ const table = useVueTable({
     get columnOrder() { return columnOrder.value },
     get columnVisibility() { return columnVisibility.value },
     get columnSizing() { return columnSizing.value },
+    get pagination() { return pagination.value },
   },
   onSortingChange: updater => updateSorting(updater),
   onColumnPinningChange: updater => updatePinning(updater),
   onColumnOrderChange: updater => updateState(columnOrder, updater, 'order'),
   onColumnVisibilityChange: updater => updateState(columnVisibility, updater, 'visibility'),
   onColumnSizingChange: updater => updateState(columnSizing, updater, 'sizing'),
+  onPaginationChange: updatePagination,
 })
 
-const tableRows = computed(() => table.getRowModel().rows)
+const tableRows = computed(() => props.paging === 'virtual'
+  ? table.getPrePaginationRowModel().rows
+  : table.getRowModel().rows)
+const totalRowCount = computed(() => table.getPrePaginationRowModel().rows.length)
+const pageCount = computed(() => Math.max(1, table.getPageCount()))
+const currentPage = computed(() => Math.min(pagination.value.pageIndex + 1, pageCount.value))
+const pageSizeOptions = computed(() => [...new Set([...props.pageSizes, pagination.value.pageSize])]
+  .filter(size => Number.isFinite(size) && size > 0)
+  .sort((left, right) => left - right))
+const pageOffset = computed(() => props.paging === 'pages'
+  ? pagination.value.pageIndex * pagination.value.pageSize
+  : 0)
 const rowVirtualizer = useVirtualizer<HTMLElement, HTMLTableRowElement>(computed(() => ({
   count: tableRows.value.length,
   estimateSize: () => props.rowSize,
@@ -132,14 +162,15 @@ const virtualRows = computed<VirtualTableRow[]>(() => {
     rows.map(row => row.original),
     props.columns.length,
     props.styleContract,
-    items[0]!.index,
-    tableRows.value.length,
+    pageOffset.value + items[0]!.index,
+    totalRowCount.value,
   )
 
   return rows.map((row, index) => ({
     virtualItem: items[index]!,
     row,
     styledRow: styledRows[index] ?? row.original,
+    rowIndex: pageOffset.value + items[index]!.index,
   }))
 })
 const virtualRowContexts = computed(() => new Map(
@@ -157,6 +188,7 @@ interface VirtualTableRow {
   virtualItem: VirtualItem
   row: Row<Record<string, unknown>>
   styledRow: Record<string, unknown>
+  rowIndex: number
 }
 
 const defaultColumnMenu: ContextMenuDescriptor = {
@@ -195,8 +227,10 @@ const unregisterBoundary = boundaryRegistry?.register(props.boundaryId, {
 
 watch(
   () => [props.source, props.renderVersion] as const,
-  ([source]) => {
+  async ([source]) => {
     baseRows.value = copyRows(source)
+    await nextTick()
+    clampPagination()
   },
 )
 watch(
@@ -217,9 +251,45 @@ function renderTableCell(
   return props.renderCell(
     column,
     virtualRow?.styledRow ?? row.original,
-    virtualRow?.virtualItem.index ?? row.index,
+    virtualRow?.rowIndex ?? row.index,
     row.id,
   )
+}
+
+function updatePagination(updater: Updater<PaginationState>): void {
+  const next = resolveUpdater(updater, pagination.value)
+  const pageSize = normalizePositiveInteger(next.pageSize, props.pageSize)
+  const maxPageIndex = Math.max(0, Math.ceil(totalRowCount.value / pageSize) - 1)
+  pagination.value = {
+    pageIndex: Math.min(Math.max(0, Math.floor(next.pageIndex)), maxPageIndex),
+    pageSize,
+  }
+  persistTableState('pagination', pagination.value)
+  if (scrollRoot.value)
+    scrollRoot.value.scrollTop = 0
+}
+
+function setPageSize(event: Event): void {
+  const target = event.target
+  if (!(target instanceof HTMLSelectElement)) return
+  updatePagination({ pageIndex: 0, pageSize: Number(target.value) })
+}
+
+function clampPagination(): void {
+  updatePagination(pagination.value)
+}
+
+function readInitialPagination(): PaginationState {
+  const fallback = { pageIndex: 0, pageSize: props.pageSize }
+  const stored = readTableState<PaginationState>('pagination', fallback)
+  const pageSize = normalizePositiveInteger(stored.pageSize, props.pageSize)
+  return {
+    pageIndex: Math.min(
+      normalizeNonNegativeInteger(stored.pageIndex, 0),
+      Math.max(0, Math.ceil(baseRows.value.length / pageSize) - 1),
+    ),
+    pageSize,
+  }
 }
 
 function updateSorting(updater: Updater<SortingState>): void {
@@ -315,7 +385,7 @@ function openColumnMenu(
   const menu = resolveColumnMenu(descriptor)
   if (!menu) return
   const context = createColumnActionContext(column, descriptor)
-  if (!menu.items.some(item => item.kind === 'item' && Endge.runtime.actions.canExecute(item.action, context)))
+  if (!menu.items.some(item => item.kind === 'item' && Endge.runtime.actions.canExecute(item.action, context, item.input)))
     return
   event.preventDefault()
   event.stopPropagation()
@@ -511,16 +581,31 @@ function normalizeRowId(value: unknown, index: number): string {
   return normalized || String(index)
 }
 
+function normalizePositiveInteger(value: unknown, fallback: number): number {
+  const normalized = Math.floor(Number(value))
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : fallback
+}
+
+function normalizeNonNegativeInteger(value: unknown, fallback: number): number {
+  const normalized = Math.floor(Number(value))
+  return Number.isFinite(normalized) && normalized >= 0 ? normalized : fallback
+}
+
 function menuItem(id: string, label: string, icon: string) {
   return { kind: 'item' as const, id, label, action: id, icon }
 }
 </script>
 
 <template>
-  <div class="endge-shadcn-table" :style="{ '--endge-table-row-size': `${rowSize}px` }">
+  <div
+    class="endge-shadcn-table"
+    :data-paging="paging"
+    :data-lazy="lazy ? 'true' : undefined"
+    :style="{ '--endge-table-row-size': `${rowSize}px` }"
+  >
     <div class="endge-shadcn-table__toolbar">
       <div class="endge-shadcn-table__summary">
-        <span>{{ tableRows.length }}</span>
+        <span>{{ totalRowCount }}</span>
         <span class="endge-shadcn-table__summary-label">строк</span>
       </div>
       <ShadcnTableColumnManager v-if="columns.length > 1" :table="table" />
@@ -534,7 +619,8 @@ function menuItem(id: string, label: string, icon: string) {
       <table
         data-slot="table"
         data-virtualized="true"
-        :data-row-count="tableRows.length"
+        :data-row-count="totalRowCount"
+        :data-page-row-count="tableRows.length"
         class="endge-shadcn-table__table"
         :style="{ width: tableWidth }"
       >
@@ -588,7 +674,7 @@ function menuItem(id: string, label: string, icon: string) {
           <tr
             v-for="virtualRow in virtualRows"
             :key="String(virtualRow.virtualItem.key)"
-            :data-index="virtualRow.virtualItem.index"
+            :data-index="virtualRow.rowIndex"
             class="endge-shadcn-table__row"
             :class="getRowClass(virtualRow.styledRow)"
             :style="getVirtualRowStyle(virtualRow.virtualItem)"
@@ -610,5 +696,57 @@ function menuItem(id: string, label: string, icon: string) {
         </tbody>
       </table>
     </div>
+
+    <footer v-if="paging === 'pages'" class="endge-shadcn-table__pagination" aria-label="Table pagination">
+      <div class="endge-shadcn-table__pagination-controls">
+        <label class="endge-shadcn-table__page-size">
+          <span>Rows per page</span>
+          <span class="endge-shadcn-table__page-size-select">
+            <select :value="pagination.pageSize" aria-label="Rows per page" @change="setPageSize">
+              <option v-for="size in pageSizeOptions" :key="size" :value="size">
+                {{ size }}
+              </option>
+            </select>
+          </span>
+        </label>
+
+        <span class="endge-shadcn-table__page-label">Page {{ currentPage }} of {{ pageCount }}</span>
+
+        <div class="endge-shadcn-table__page-buttons">
+          <button
+            type="button"
+            aria-label="First page"
+            :disabled="!table.getCanPreviousPage()"
+            @click="table.setPageIndex(0)"
+          >
+            <ChevronsLeft :size="16" />
+          </button>
+          <button
+            type="button"
+            aria-label="Previous page"
+            :disabled="!table.getCanPreviousPage()"
+            @click="table.previousPage()"
+          >
+            <ChevronLeft :size="16" />
+          </button>
+          <button
+            type="button"
+            aria-label="Next page"
+            :disabled="!table.getCanNextPage()"
+            @click="table.nextPage()"
+          >
+            <ChevronRight :size="16" />
+          </button>
+          <button
+            type="button"
+            aria-label="Last page"
+            :disabled="!table.getCanNextPage()"
+            @click="table.setPageIndex(pageCount - 1)"
+          >
+            <ChevronsRight :size="16" />
+          </button>
+        </div>
+      </div>
+    </footer>
   </div>
 </template>

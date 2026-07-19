@@ -20,7 +20,7 @@ describe('VueShadcnSfcDataTable virtualization', () => {
     vi.restoreAllMocks()
   })
 
-  it('virtualizes 6k rows by default and renders a deep scroll window', async () => {
+  it('uses pagination defaults with lazy and virtualizes the active page', async () => {
     vi.stubGlobal('ResizeObserver', class {
       observe() {}
       unobserve() {}
@@ -50,6 +50,7 @@ describe('VueShadcnSfcDataTable virtualization', () => {
         defaultSort: [],
         defaultPin: [],
         rowSize: 40,
+        lazy: true,
         renderVersion: 0,
         renderCell: (column, row) => h('span', String(row[column.key] ?? '')),
       }),
@@ -63,6 +64,73 @@ describe('VueShadcnSfcDataTable virtualization', () => {
     const table = root.querySelector<HTMLTableElement>('[data-virtualized="true"]')
     const initialRows = root.querySelectorAll<HTMLElement>('.endge-shadcn-table__row')
     expect(table?.dataset.rowCount).toBe('6000')
+    expect(table?.dataset.pageRowCount).toBe('10')
+    expect(root.querySelector('.endge-shadcn-table')?.getAttribute('data-paging')).toBe('pages')
+    expect(root.querySelector('.endge-shadcn-table')?.getAttribute('data-lazy')).toBe('true')
+    expect(root.querySelector('.endge-shadcn-table__page-label')?.textContent).toContain('Page 1 of 600')
+    expect(initialRows.length).toBeGreaterThan(0)
+    expect(initialRows.length).toBeLessThan(40)
+
+    root.querySelector<HTMLButtonElement>('[aria-label="Last page"]')?.click()
+    await nextTick()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const lastPageIndexes = [...root.querySelectorAll<HTMLElement>('.endge-shadcn-table__row')]
+      .map(row => Number(row.dataset.index))
+    expect(root.querySelector('.endge-shadcn-table__page-label')?.textContent).toContain('Page 600 of 600')
+    expect(Math.min(...lastPageIndexes)).toBeGreaterThanOrEqual(5_990)
+    expect(lastPageIndexes.length).toBeLessThan(40)
+
+    app.unmount()
+  })
+
+  it('virtualizes the complete local collection without rendering pagination', async () => {
+    vi.stubGlobal('ResizeObserver', class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    })
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400)
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800)
+
+    const rows = Array.from({ length: 6_000 }, (_, index) => ({
+      id: String(index),
+      flight: `SU ${String(index).padStart(4, '0')}`,
+      gate: `A${index % 30}`,
+    }))
+    const root = document.createElement('div')
+    const app = createApp({
+      render: () => h(ShadcnSfcDataTable, {
+        boundaryId: 'virtualization-all-rows-test',
+        tableId: 'flights-virtual',
+        runtimeState: null,
+        columns: createColumns(),
+        source: rows,
+        styleContract: createStyleContract(),
+        rowKey: 'id',
+        sortMode: 'multiple',
+        pinMode: 'disabled',
+        columnMenu: { mode: 'disabled', menu: null, diagnostics: [] },
+        defaultSort: [],
+        defaultPin: [],
+        rowSize: 40,
+        paging: 'virtual',
+        renderVersion: 0,
+        renderCell: (column, row) => h('span', String(row[column.key] ?? '')),
+      }),
+    })
+
+    app.mount(root)
+    await nextTick()
+    await nextTick()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const table = root.querySelector<HTMLTableElement>('[data-virtualized="true"]')
+    const initialRows = root.querySelectorAll<HTMLElement>('.endge-shadcn-table__row')
+    expect(table?.dataset.rowCount).toBe('6000')
+    expect(table?.dataset.pageRowCount).toBe('6000')
+    expect(root.querySelector('.endge-shadcn-table')?.getAttribute('data-paging')).toBe('virtual')
+    expect(root.querySelector('.endge-shadcn-table__pagination')).toBeNull()
     expect(initialRows.length).toBeGreaterThan(0)
     expect(initialRows.length).toBeLessThan(40)
 

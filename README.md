@@ -4,7 +4,22 @@ Self-contained `vue-shadcn` UI adapter for Endge.
 
 The package owns its primitive source and CSS, so configurator previews do not depend on customer aliases such as `@/components/ui`. Its controls use the same Shadcn tokens and restrained visual language as Starter Template.
 
-It implements every visual SFC adapter tag. The compound `Table` tag uses TanStack Table with TanStack Virtual enabled by default for every row count. It supports nested SFC cell components, sorting, pinning, resizing, column order and visibility, runtime-state persistence, EndgeCSS surfaces, context menus, and runtime boundary patches. Adapter renderers remain display-only: runtime update callbacks and two-way bindings stay owned by the render host.
+It implements every visual SFC adapter tag. The compound `Table` tag uses TanStack Table with pagination and TanStack Virtual enabled by default. The default page size is 100 rows, and virtualization is applied inside the active page. It supports nested SFC cell components, sorting, pinning, resizing, column order and visibility, runtime-state persistence, EndgeCSS surfaces, context menus, and runtime boundary patches. Adapter renderers remain display-only: runtime update callbacks and two-way bindings stay owned by the render host.
+
+```vue
+<Table
+  id="flights"
+  :rows="rows"
+  row-key="id"
+  page-size="100"
+  page-sizes="10,25,50,100"
+  lazy
+>
+  <!-- columns -->
+</Table>
+```
+
+`lazy` is preserved as a renderer-neutral Table capability and both bundled adapters recognize it. At this stage it still paginates the materialized `rows` collection. Real server loading requires a Core data-request contract carrying page, page size, total row count, loading state, and a Query reload command; the adapters intentionally do not issue network requests themselves.
 
 ```ts
 import '@endge/ui-vue-shadcn/vue-shadcn.css'
