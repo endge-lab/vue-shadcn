@@ -1,10 +1,13 @@
 import type { SourceFieldOption, SourceFieldType } from '@endge/core'
 import { isoToDateInput, isoToDateTimeLocalInput, timeToTimeInput } from '@endge/utils'
-import type { SFCVueRenderAdapterFunction } from '@endge/vue'
+import type { SFCVueRenderAdapterFunction } from '@endge/ui-vue'
 
 import ShadcnCheckbox from '@/ui/primitives/ShadcnCheckbox.vue'
+import ShadcnBadge from '@/ui/primitives/ShadcnBadge.vue'
+import ShadcnIcon from '@/ui/primitives/ShadcnIcon.vue'
 import ShadcnInput from '@/ui/primitives/ShadcnInput.vue'
 import ShadcnSelect from '@/ui/primitives/ShadcnSelect.vue'
+import ShadcnSeparator from '@/ui/primitives/ShadcnSeparator.vue'
 import ShadcnTextarea from '@/ui/primitives/ShadcnTextarea.vue'
 
 type SFCInputType = Extract<SourceFieldType, 'String' | 'Number' | 'Date' | 'Time' | 'DateTime'>
@@ -35,21 +38,23 @@ export const ShadcnVueRender_Number: SFCVueRenderAdapterFunction = (input) => {
 
 export const ShadcnVueRender_Icon: SFCVueRenderAdapterFunction = (input) => {
   const name = input.props.name ?? input.props.icon ?? ''
+  const size = Number(input.props.size ?? 16)
 
-  return input.h('span', {
+  return input.h(ShadcnIcon, {
     ...input.attrs,
     class: ['endge-sfc-icon', 'endge-shadcn-icon', input.props.class],
+    name: String(name),
+    size: Number.isFinite(size) ? size : 16,
     'aria-label': name ? String(name) : undefined,
-    role: 'img',
-  }, String(name))
+  })
 }
 
 export const ShadcnVueRender_Badge: SFCVueRenderAdapterFunction = (input) => {
-  return input.h('span', {
+  return input.h(ShadcnBadge, {
     ...input.attrs,
     class: ['endge-sfc-badge', 'endge-shadcn-badge', input.props.class],
-    'data-tone': normalizeTone(input.props.tone),
-  }, input.children)
+    tone: normalizeTone(input.props.tone),
+  }, { default: () => input.children })
 }
 
 export const ShadcnVueRender_Dot: SFCVueRenderAdapterFunction = (input) => {
@@ -115,12 +120,10 @@ export const ShadcnVueRender_Grid: SFCVueRenderAdapterFunction = (input) => {
 export const ShadcnVueRender_Divider: SFCVueRenderAdapterFunction = (input) => {
   const vertical = input.props.vertical === true || input.props.orientation === 'vertical'
 
-  return input.h('div', {
+  return input.h(ShadcnSeparator, {
     ...input.attrs,
     class: ['endge-sfc-divider', 'endge-shadcn-divider', input.props.class],
-    role: 'separator',
-    'aria-orientation': vertical ? 'vertical' : 'horizontal',
-    'data-orientation': vertical ? 'vertical' : 'horizontal',
+    orientation: vertical ? 'vertical' : 'horizontal',
     style: input.attrs.style,
   })
 }

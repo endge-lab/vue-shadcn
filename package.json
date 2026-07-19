@@ -1,5 +1,5 @@
 {
-  "name": "@endge/shadcn-vue",
+  "name": "@endge/ui-vue-shadcn",
   "private": false,
   "version": "0.1.0",
   "license": "Apache-2.0",
@@ -24,25 +24,30 @@
     "test": "vitest run",
     "typecheck": "vue-tsc --noEmit"
   },
+  "dependencies": {
+    "@lucide/vue": "^1.14.0",
+    "@tanstack/vue-table": "^8.21.3",
+    "sortablejs": "^1.15.7"
+  },
   "peerDependencies": {
     "@endge/core": "^1.2.6",
     "@endge/utils": "^0.24.2",
-    "@endge/vue": "^0.23.2",
+    "@endge/ui-vue": "^0.23.2",
     "vue": "^3.5.0"
   },
   "devDependencies": {
-    "@endge/core": "^1.2.6",
-    "@endge/utils": "^0.24.2",
-    "@endge/vue": "^0.23.2",
+    "@endge/core": "link:../@endge-core",
+    "@endge/utils": "link:../@endge-utils",
+    "@endge/ui-vue": "link:../@endge-ui-vue",
     "@vitejs/plugin-vue": "^6.0.1",
+    "@types/sortablejs": "^1.15.9",
     "jsdom": "^26.1.0",
     "rimraf": "^6.0.1",
     "typescript": "~5.9.3",
     "vite": "^7.2.2",
     "vite-plugin-dts": "^4.5.4",
     "vitest": "^3.2.4",
-    "vue": "^3.5.24",
+    "vue": "3.5.38",
     "vue-tsc": "^3.1.3"
   }
 }
-

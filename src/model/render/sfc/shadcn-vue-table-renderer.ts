@@ -1,0 +1,207 @@
+import type { RComponentSFC_IR_ElementNode, RComponentSFC_IR_Node } from '@endge/core'
+import {
+  normalizeComponentSFCTableColumnMenu,
+  normalizeComponentSFCTableColumnPin,
+  normalizeComponentSFCTableColumnPinMode,
+  normalizeComponentSFCTableSort,
+  normalizeComponentSFCTableSortMode,
+} from '@endge/core'
+import type { SFCVueRenderContext, SFCVueRenderFunction } from '@endge/ui-vue'
+import {
+  createSFCTableColumnStyleSurfaces,
+  createSFCTableStyleContract,
+  evaluateSFCProps,
+  evaluateSFCValue,
+  extendSFCVueRenderContext,
+  getSFCTableCellStyleSurfaces,
+  normalizeSFCTableCellAlignment,
+  renderSFCNodes,
+  SFCRender_Base,
+} from '@endge/ui-vue'
+
+import type { EndgeShadcnTableColumn } from '@/ui/table/table.types'
+import ShadcnSfcDataTable from '@/ui/table/ShadcnSfcDataTable.vue'
+
+/** Shadcn/TanStack implementation of the compound SFC Table tag. */
+export const ShadcnVueRender_Table: SFCVueRenderFunction = SFCRender_Base((input) => {
+  const rows = normalizeRows(input.props.rows)
+  const explicitHeight = input.props.height ?? input.props.h
+  const fillsAvailableHeight = explicitHeight == null || explicitHeight === ''
+  const rowKey = normalizeText(input.props['row-key'] ?? input.props.rowKey, 'id')
+  const sortDescriptor = normalizeComponentSFCTableSort(input.node)
+  const pinDescriptor = normalizeComponentSFCTableColumnPin(input.node)
+  const columnMenuDescriptor = normalizeComponentSFCTableColumnMenu(input.node)
+  const styleContract = createSFCTableStyleContract(input.context)
+  const columns = collectTableColumns(input.node, input.context, sortDescriptor, pinDescriptor, styleContract)
+  const tableId = normalizeText(input.props.id ?? input.props.tableId ?? input.attrs.id, '')
+  const cellAlignment = normalizeSFCTableCellAlignment(
+    input.props['cell-align'] ?? input.props.cellAlign,
+    input.props['cell-vertical-align'] ?? input.props.cellVerticalAlign,
+  )
+  const tableContext = extendSFCVueRenderContext(
+    input.context,
+    {},
+    input.context.iteration,
+    `${input.context.consumerScope}/table:${input.node.id}`,
+  )
+
+  return input.h('div', {
+    ...input.attrs,
+    'data-endge-layout-fill-height': fillsAvailableHeight ? '' : undefined,
+    class: ['endge-sfc-table', 'endge-shadcn-sfc-table', input.props.class],
+    style: {
+      ...(isPlainObject(input.attrs.style) ? input.attrs.style : {}),
+      width: normalizeCssSize(input.props.width ?? input.props.w, '100%'),
+      height: normalizeCssSize(explicitHeight, '100%'),
+      minHeight: normalizeCssSize(input.props.minHeight ?? input.props.minH, '180px'),
+      flex: fillsAvailableHeight ? '1 1 0%' : undefined,
+      overflow: 'hidden',
+    },
+  }, [
+    input.h(ShadcnSfcDataTable, {
+      boundaryId: input.node.id,
+      tableId,
+      runtimeState: input.context.runtimeState,
+      columns,
+      source: rows,
+      styleContract,
+      rowKey,
+      sortMode: normalizeComponentSFCTableSortMode(input.props['sort-mode'] ?? input.props.sortMode ?? sortDescriptor.mode),
+      pinMode: normalizeComponentSFCTableColumnPinMode(input.props['column-pin'] ?? input.props.columnPin ?? pinDescriptor.mode),
+      columnMenu: columnMenuDescriptor,
+      defaultSort: sortDescriptor.defaultSort,
+      defaultPin: pinDescriptor.defaultPin,
+      rowSize: normalizeNumber(input.props.rowSize, 40),
+      renderVersion: input.context.renderVersion,
+      renderCell: (
+        column: EndgeShadcnTableColumn,
+        row: Record<string, unknown>,
+        rowIndex: number,
+        rowId: string,
+      ) => {
+        const cellContext = extendSFCVueRenderContext(tableContext, {
+          row,
+          rowIndex,
+          value: row[column.key],
+        }, tableContext.iteration, `${tableContext.consumerScope}/row:${rowId}/column:${column.key}`)
+        const children = renderSFCNodes(input.h, column.cellNodes, cellContext)
+        const contentAttrs = getSFCTableCellStyleSurfaces(row, column.index)?.cellContent.attrs
+
+        return input.h('div', {
+          part: contentAttrs?.part ?? 'cell-content',
+          'data-endge-part': contentAttrs?.['data-endge-part'] ?? 'cell-content',
+          class: ['endge-sfc-table-cell-content', 'endge-shadcn-table__cell-content', contentAttrs?.class],
+          style: {
+            display: 'flex',
+            alignItems: mapVerticalAlignment(cellAlignment.vertical),
+            justifyContent: mapHorizontalAlignment(cellAlignment.horizontal),
+            width: '100%',
+            minWidth: 0,
+          },
+        }, children)
+      },
+    }),
+  ])
+})
+
+function collectTableColumns(
+  tableNode: RComponentSFC_IR_ElementNode,
+  context: SFCVueRenderContext,
+  sortDescriptor: ReturnType<typeof normalizeComponentSFCTableSort>,
+  pinDescriptor: ReturnType<typeof normalizeComponentSFCTableColumnPin>,
+  styleContract: ReturnType<typeof createSFCTableStyleContract>,
+): EndgeShadcnTableColumn[] {
+  const nodes = tableNode.children.filter(isElementNode).filter(node => node.tag === 'Column')
+  const styleSurfaces = createSFCTableColumnStyleSurfaces(styleContract, nodes.length)
+
+  return nodes.map((node, index) => {
+    const props = evaluateSFCProps(node.props, context)
+    const key = normalizeColumnKey(node, context, props.key, `column_${index}`)
+    const sort = sortDescriptor.columns.find(column => column.key === key) ?? null
+    const pin = pinDescriptor.columns.find(column => column.key === key) ?? null
+    const width = normalizeOptionalNumber(props.width ?? props.size)
+
+    return {
+      index,
+      key,
+      title: normalizeText(props.title ?? props.name, key),
+      width,
+      minWidth: normalizeNumber(props.minWidth ?? props.minSize, 64),
+      maxWidth: normalizeNumber(props.maxWidth ?? props.maxSize, 1200),
+      pinnable: pin?.pinnable ?? true,
+      sort: sort
+        ? { sortable: sort.sortable, comparator: sort.comparator, paths: [...sort.paths] }
+        : null,
+      cellNodes: resolveCellNodes(node),
+      styleSurfaces: styleSurfaces[index]!,
+    }
+  })
+}
+
+function resolveCellNodes(columnNode: RComponentSFC_IR_ElementNode): RComponentSFC_IR_Node[] {
+  const cell = columnNode.children.filter(isElementNode).find(node => node.tag === 'Cell')
+  return (cell?.children ?? columnNode.children).filter(node => !isTableMenuNode(node))
+}
+
+function normalizeColumnKey(
+  columnNode: RComponentSFC_IR_ElementNode,
+  context: SFCVueRenderContext,
+  propValue: unknown,
+  fallback: string,
+): string {
+  const evaluated = propValue ?? evaluateSFCValue(columnNode.directives.key, context)
+  if (evaluated != null) return normalizeText(evaluated, fallback)
+  const directiveKey = columnNode.directives.key
+  if (directiveKey?.kind === 'expression' && directiveKey.reads.length === 0)
+    return normalizeText(directiveKey.source.replace(/^['"]|['"]$/g, ''), fallback)
+  return fallback
+}
+
+function normalizeRows(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return []
+  return value.map((row, index) => isPlainObject(row) ? { ...row } : { id: index, value: row })
+}
+
+function normalizeText(value: unknown, fallback: string): string {
+  const source = String(value ?? '').trim()
+  return source || fallback
+}
+
+function normalizeNumber(value: unknown, fallback: number): number {
+  const number = Number(value)
+  return Number.isFinite(number) && number > 0 ? number : fallback
+}
+
+function normalizeOptionalNumber(value: unknown): number | null {
+  if (value == null || value === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) && number > 0 ? number : null
+}
+
+function normalizeCssSize(value: unknown, fallback: string): string {
+  if (value == null || value === '') return fallback
+  return typeof value === 'number' ? `${value}px` : String(value)
+}
+
+function mapHorizontalAlignment(value: string): 'flex-start' | 'center' | 'flex-end' {
+  if (value === 'center') return 'center'
+  return value === 'right' ? 'flex-end' : 'flex-start'
+}
+
+function mapVerticalAlignment(value: string): 'flex-start' | 'center' | 'flex-end' {
+  if (value === 'middle') return 'center'
+  return value === 'bottom' ? 'flex-end' : 'flex-start'
+}
+
+function isElementNode(node: RComponentSFC_IR_Node): node is RComponentSFC_IR_ElementNode {
+  return node.kind === 'element'
+}
+
+function isTableMenuNode(node: RComponentSFC_IR_Node): boolean {
+  return node.kind === 'element'
+    && (node.tag === 'ColumnMenu' || node.tag === 'MenuItem' || node.tag === 'MenuSeparator')
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === 'object' && !Array.isArray(value)
+}

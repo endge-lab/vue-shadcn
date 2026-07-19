@@ -17,7 +17,10 @@ export default defineConfig({
       external: [
         '@endge/core',
         '@endge/utils',
-        '@endge/vue',
+        '@endge/ui-vue',
+        '@lucide/vue',
+        '@tanstack/vue-table',
+        'sortablejs',
         'vue',
       ],
       output: {
@@ -45,4 +48,3 @@ export default defineConfig({
     },
   },
 })
-

@@ -2,7 +2,7 @@ import {
   ENDGE_SFC_RENDER_ADAPTER_PROTOCOL,
   ENDGE_SFC_RENDER_ADAPTER_PROTOCOL_VERSION,
 } from '@endge/core'
-import type { SFCVueRenderAdapter } from '@endge/vue'
+import type { SFCVueRenderAdapter } from '@endge/ui-vue'
 
 import {
   ShadcnVueRender_Badge,
@@ -20,6 +20,7 @@ import {
   ShadcnVueRender_Text,
   ShadcnVueRender_Textarea,
 } from '@/model/render/sfc/shadcn-vue-renderers'
+import { ShadcnVueRender_Table } from '@/model/render/sfc/shadcn-vue-table-renderer'
 
 export const SHADCN_VUE_SFC_ADAPTER_ID = 'shadcn-vue'
 
@@ -44,5 +45,6 @@ export const ShadcnVueSFCAdapter: SFCVueRenderAdapter = {
     Textarea: ShadcnVueRender_Textarea,
     Checkbox: ShadcnVueRender_Checkbox,
     Select: ShadcnVueRender_Select,
+    Table: ShadcnVueRender_Table,
   },
 }

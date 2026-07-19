@@ -15,7 +15,7 @@ export class EndgeShadcnVueModule extends EndgeModule {
 
 /** Подключает shadcn-vue adapter к federation до Endge.boot(). */
 export const EndgeShadcnVuePlugin: EndgePlugin = {
-  id: '@endge/shadcn-vue',
+  id: '@endge/ui-vue-shadcn',
   install(): void {
     Endge.defineModule({
       key: 'shadcnVue',

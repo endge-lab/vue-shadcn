@@ -1,5 +1,6 @@
 import type {
   EndgeWorkspaceDefinition,
+  EndgeDiagnosticsConfiguration,
   FilterViewRuntimeHost,
   RComponentSFC_IR_ElementNode,
   RComponentSFC_IR_Tag,
@@ -8,7 +9,6 @@ import type {
 import {
   ENDGE_SFC_RENDER_ADAPTER_PROTOCOL,
   ENDGE_SFC_RENDER_ADAPTER_PROTOCOL_VERSION,
-  ENDGE_SFC_RENDER_ADAPTER_REQUIRED_KEYS,
   Endge,
 } from '@endge/core'
 import {
@@ -18,7 +18,8 @@ import {
   NativeVueSFCAdapter,
   renderSFCNode,
   SFC_Renderer,
-} from '@endge/vue'
+  SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS,
+} from '@endge/ui-vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, h, isVNode, nextTick, type VNode } from 'vue'
 
@@ -31,18 +32,24 @@ import {
 const TEST_WORKSPACE: EndgeWorkspaceDefinition = {
   identity: 'workspace-test',
   displayName: 'Test Workspace',
-  vars: [],
-  locales: [{ code: 'en', displayName: 'English', shortLabel: 'EN' }],
-  defaultLocale: 'en',
-  fallbackLocale: 'en',
-  themes: [
-    { identity: 'light', displayName: 'Light' },
-    { identity: 'dark', displayName: 'Dark' },
-  ],
-  defaultTheme: 'light',
-  defaultAuthProfileIdentity: null,
-  sfcAdapterIds: ['native-vue', 'shadcn-vue'],
-  defaultSfcAdapterId: 'shadcn-vue',
+  managedBy: 'user',
+  managedById: null,
+  installedIntegrations: [],
+  configuration: {
+    vars: [],
+    locales: [{ code: 'en', displayName: 'English', shortLabel: 'EN', direction: 'ltr' }],
+    defaultLocale: 'en',
+    fallbackLocale: 'en',
+    themes: [
+      { identity: 'light', displayName: 'Light' },
+      { identity: 'dark', displayName: 'Dark' },
+    ],
+    defaultTheme: 'light',
+    defaultAuthProfileIdentity: null,
+    sfcAdapterIds: ['native-vue', 'shadcn-vue'],
+    defaultSfcAdapterId: 'shadcn-vue',
+    diagnostics: createDiagnosticsConfiguration(),
+  },
 }
 
 describe('ShadcnVueSFCAdapter', () => {
@@ -55,7 +62,7 @@ describe('ShadcnVueSFCAdapter', () => {
       protocol: ENDGE_SFC_RENDER_ADAPTER_PROTOCOL,
       protocolVersion: ENDGE_SFC_RENDER_ADAPTER_PROTOCOL_VERSION,
       renderer: 'vue',
-      requiredRendererKeys: ENDGE_SFC_RENDER_ADAPTER_REQUIRED_KEYS,
+      requiredRendererKeys: SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS,
     })
   })
 
@@ -66,7 +73,7 @@ describe('ShadcnVueSFCAdapter', () => {
 
   it('registers the complete Vue adapter contract', () => {
     expect(Endge.uiRegistry.adapters.active?.id).toBe('shadcn-vue')
-    expect(Object.keys(ShadcnVueSFCAdapter.renderers)).toEqual(ENDGE_SFC_RENDER_ADAPTER_REQUIRED_KEYS)
+    expect(Object.keys(ShadcnVueSFCAdapter.renderers)).toEqual(SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS)
   })
 
   it.each([
@@ -155,16 +162,22 @@ describe('ShadcnVueSFCAdapter', () => {
     vueModule.setup()
     Endge.workspace.apply({
       ...TEST_WORKSPACE,
-      sfcAdapterIds: ['native-vue', 'shadcn-vue'],
-      defaultSfcAdapterId: 'native-vue',
+      configuration: {
+        ...TEST_WORKSPACE.configuration,
+        sfcAdapterIds: ['native-vue', 'shadcn-vue'],
+        defaultSfcAdapterId: 'native-vue',
+      },
     })
     vueModule.build()
     vueModule.start()
 
     Endge.workspace.apply({
       ...TEST_WORKSPACE,
-      sfcAdapterIds: ['native-vue', 'shadcn-vue'],
-      defaultSfcAdapterId: 'shadcn-vue',
+      configuration: {
+        ...TEST_WORKSPACE.configuration,
+        sfcAdapterIds: ['native-vue', 'shadcn-vue'],
+        defaultSfcAdapterId: 'shadcn-vue',
+      },
     })
 
     expect(Endge.uiRegistry.adapters.active?.id).toBe('shadcn-vue')
@@ -177,7 +190,17 @@ describe('ShadcnVueSFCAdapter', () => {
 
     const ir = {
       version: 1 as const,
-      script: { props: [], locals: [] },
+      script: {
+        props: [],
+        locals: [],
+        ports: {
+          require: { computations: [], components: [], actions: [] },
+          provides: { actions: [] },
+          emits: { events: [] },
+          forward: { rules: [] },
+        },
+        portCalls: [],
+      },
       template: {
         roots: [{
           id: 'switch-input',
@@ -246,7 +269,7 @@ describe('ShadcnVueSFCAdapter', () => {
 
     expect(root.querySelector('input')?.classList.contains('endge-shadcn-input')).toBe(false)
     expect(root.querySelector('select')?.multiple).toBe(true)
-    expect(root.querySelector('input[type="checkbox"]')?.checked).toBe(true)
+    expect((root.querySelector('input[type="checkbox"]') as HTMLInputElement | null)?.checked).toBe(true)
     expect([...root.querySelectorAll('.endge-filter-field__label')].map(node => node.textContent)).toEqual([
       'Поиск рейса',
       'Аэропорты',
@@ -345,4 +368,29 @@ function selectedOptions(root: HTMLElement): string[] {
 
 function literal(value: unknown): RComponentSFC_IR_Value {
   return { kind: 'literal', value }
+}
+
+function createDiagnosticsConfiguration(): EndgeDiagnosticsConfiguration {
+  return {
+    telemetry: {
+      collection: {
+        enabled: false,
+        signals: ['log' as const],
+        minSeverity: 9,
+        maxRecords: 2_000,
+      },
+      outputs: [],
+      routes: [],
+    },
+    snapshots: {
+      content: { telemetry: true, problems: true, configuration: false },
+      automatic: {
+        enabled: false,
+        errorCount: 10,
+        windowSeconds: 60,
+        cooldownSeconds: 300,
+        outputIds: [],
+      },
+    },
+  }
 }

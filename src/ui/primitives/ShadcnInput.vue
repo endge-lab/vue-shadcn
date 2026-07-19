@@ -19,6 +19,7 @@ defineProps<{
 <template>
   <input
     v-bind="$attrs"
+    data-slot="input"
     :type="type"
     :value="value"
     :placeholder="placeholder"
@@ -29,4 +30,3 @@ defineProps<{
     :disabled="disabled"
   >
 </template>
-

@@ -13,7 +13,7 @@ defineProps<{
 </script>
 
 <template>
-  <label v-bind="$attrs">
+  <label v-bind="$attrs" data-slot="checkbox-field">
     <input
       class="endge-shadcn-checkbox"
       type="checkbox"
@@ -24,4 +24,3 @@ defineProps<{
     <span v-if="label != null" class="endge-shadcn-checkbox-label">{{ label }}</span>
   </label>
 </template>
-

@@ -16,6 +16,7 @@ defineProps<{
 <template>
   <textarea
     v-bind="$attrs"
+    data-slot="textarea"
     :value="value"
     :placeholder="placeholder"
     :rows="rows"
@@ -23,4 +24,3 @@ defineProps<{
     :disabled="disabled"
   />
 </template>
-

@@ -1,0 +1,7 @@
+export { default as ShadcnBadge } from './ShadcnBadge.vue'
+export { default as ShadcnCheckbox } from './ShadcnCheckbox.vue'
+export { default as ShadcnIcon } from './ShadcnIcon.vue'
+export { default as ShadcnInput } from './ShadcnInput.vue'
+export { default as ShadcnSelect } from './ShadcnSelect.vue'
+export { default as ShadcnSeparator } from './ShadcnSeparator.vue'
+export { default as ShadcnTextarea } from './ShadcnTextarea.vue'

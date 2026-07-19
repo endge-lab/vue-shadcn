@@ -1,4 +1,5 @@
-import { ENDGE_SFC_RENDER_ADAPTER_REQUIRED_KEYS, Endge } from '@endge/core'
+import { Endge } from '@endge/core'
+import { SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS } from '@endge/ui-vue'
 import { describe, expect, it } from 'vitest'
 import { h, isVNode } from 'vue'
 
@@ -8,7 +9,7 @@ import { ShadcnVueRender_Grid } from '@/model/render/sfc/shadcn-vue-renderers'
 describe('ShadcnVueRender_Grid', () => {
   it('completes the required adapter contract', () => {
     expect(Object.keys(ShadcnVueSFCAdapter.renderers))
-      .toEqual(ENDGE_SFC_RENDER_ADAPTER_REQUIRED_KEYS)
+      .toEqual(SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS)
     Endge.uiRegistry.adapters.reset()
     expect(() => Endge.uiRegistry.adapters.register(ShadcnVueSFCAdapter)).not.toThrow()
     Endge.uiRegistry.adapters.reset()
