@@ -5,17 +5,16 @@ import {
   ENDGE_SFC_RENDER_ADAPTER_PROTOCOL_VERSION,
   Endge,
 } from '@endge/core'
-import {
-  SFC_Renderer,
-  SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS,
-} from '@endge/ui-vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, h, nextTick } from 'vue'
 
+import { SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS } from '@/domain/types/sfc-render.type'
 import {
-  SHADCN_VUE_SFC_ADAPTER_ID,
-  ShadcnVueSFCAdapter,
-} from '@/model/render/sfc/shadcn-vue-sfc-adapter'
+  VUE_SHADCN_SFC_ADAPTER_ID,
+  VueShadcnSFCAdapter,
+} from '@/model/render/sfc/vue-shadcn-sfc-adapter'
+import VueShadcnShell from '@/ui/layout/VueShadcnShell.vue'
+import SFC_Renderer from '@/ui/render/sfc/SFC_Renderer.vue'
 
 const TABLE_SOURCE = `<script setup lang="ts">
 defineProps<{
@@ -39,26 +38,31 @@ const ROWS = [
   { id: '1', flight: 'SU 100', gate: 'A04' },
 ]
 
-describe('ShadcnVueRender_Table', () => {
+describe('VueShadcnRender_Table', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', class {
       observe() {}
+      unobserve() {}
       disconnect() {}
     })
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400)
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800)
     Endge.uiRegistry.adapters.reset()
-    Endge.uiRegistry.adapters.register(ShadcnVueSFCAdapter)
+    Endge.uiRegistry.adapters.register(VueShadcnSFCAdapter)
     Endge.uiRegistry.adapters.activate({
-      id: SHADCN_VUE_SFC_ADAPTER_ID,
+      id: VUE_SHADCN_SFC_ADAPTER_ID,
       protocol: ENDGE_SFC_RENDER_ADAPTER_PROTOCOL,
       protocolVersion: ENDGE_SFC_RENDER_ADAPTER_PROTOCOL_VERSION,
-      renderer: 'vue',
+      renderer: 'vue-shadcn',
       requiredRendererKeys: SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS,
     })
   })
 
   afterEach(() => {
     Endge.uiRegistry.adapters.reset()
+    document.body.replaceChildren()
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   it('renders nested SFC primitives inside TanStack cells and sorts rows', async () => {
@@ -67,8 +71,18 @@ describe('ShadcnVueRender_Table', () => {
     expect(mounted.root.querySelectorAll('.endge-shadcn-badge')).toHaveLength(2)
     expect(readFlights(mounted.root)).toEqual(['SU 200', 'SU 100'])
 
-    const sortButton = mounted.root.querySelector<HTMLButtonElement>('.endge-shadcn-table__sort')
-    sortButton?.click()
+    mounted.root.querySelector<HTMLButtonElement>('.endge-shadcn-table__sort')?.click()
+    await nextTick()
+
+    const menu = document.body.querySelector<HTMLElement>('.endge-shadcn-menu-root')
+    expect(menu).not.toBeNull()
+    expect([...menu!.querySelectorAll('[role="menuitem"]')].map(item => item.textContent?.trim()))
+      .toEqual(['Sort ascending', 'Sort descending', 'Hide'])
+    expect(mounted.root.querySelector('.endge-shadcn-table__menu')).toBeNull()
+    ;[...menu!.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+      .find(item => item.textContent?.includes('Sort ascending'))
+      ?.click()
+    await nextTick()
     await nextTick()
 
     expect(readFlights(mounted.root)).toEqual(['SU 100', 'SU 200'])
@@ -115,17 +129,28 @@ async function mountTable(host: ComponentSFCRuntimeHost | null = null) {
     throw new Error(`Table source failed to compile: ${JSON.stringify(result.diagnostics)}`)
 
   const root = document.createElement('div')
+  document.body.append(root)
   const app = createApp({
-    render: () => h(SFC_Renderer, {
-      ir: result.ir,
-      props: { rows: ROWS },
-      host,
+    render: () => h(VueShadcnShell, { project: 'test', env: 'test' }, {
+      default: () => h(SFC_Renderer, {
+        ir: result.ir,
+        props: { rows: ROWS },
+        host,
+      }),
     }),
   })
   app.mount(root)
   await nextTick()
+  await new Promise(resolve => setTimeout(resolve, 0))
+  await nextTick()
 
-  return { root, unmount: () => app.unmount() }
+  return {
+    root,
+    unmount: () => {
+      app.unmount()
+      root.remove()
+    },
+  }
 }
 
 function readFlights(root: HTMLElement): string[] {

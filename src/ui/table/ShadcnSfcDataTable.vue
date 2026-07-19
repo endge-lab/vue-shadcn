@@ -5,10 +5,12 @@ import type {
   ColumnOrderState,
   ColumnPinningState,
   ColumnSizingState,
+  Row,
   SortingState,
   Updater,
   VisibilityState,
 } from '@tanstack/vue-table'
+import type { VirtualItem } from '@tanstack/vue-virtual'
 import type {
   ComponentSFCTableColumnPinStateItem,
   ComponentSFCTableSortStateItem,
@@ -26,28 +28,32 @@ import {
   getSortedRowModel,
   useVueTable,
 } from '@tanstack/vue-table'
-import { ArrowDown, ArrowUp, ArrowUpDown, MoreHorizontal } from '@lucide/vue'
+import { useVirtualizer } from '@tanstack/vue-virtual'
+import { ArrowDown, ArrowUp, ChevronsUpDown } from '@lucide/vue'
 import { Endge, TABLE_RUNTIME_ACTION_IDS } from '@endge/core'
 import {
-  closeEndgeContextMenu,
-  decorateSFCTableRows,
+  decorateSFCTableRowWindow,
   getSFCTableCellStyleSurfaces,
-  openEndgeContextMenu,
   SFC_TABLE_ROW_CLASS_FIELD,
-  SFCVueBoundaryRegistryKey,
-} from '@endge/ui-vue'
+} from '@/ui/render/sfc/SFCRender_TableStyle'
+import { SFCVueBoundaryRegistryKey } from '@/ui/render/sfc/SFCRender_BoundaryRegistry'
 import {
   computed,
   inject,
   nextTick,
   onBeforeUnmount,
-  onMounted,
   ref,
   shallowRef,
   watch,
 } from 'vue'
 
 import type { EndgeShadcnTableColumn, EndgeShadcnTableProps } from './table.types'
+import {
+  closeShadcnMenu,
+  elementMenuAnchor,
+  openShadcnMenu,
+  pointMenuAnchor,
+} from '@/ui/overlay/shadcn-menu-manager'
 import ShadcnTableColumnManager from './ShadcnTableColumnManager.vue'
 
 defineOptions({ name: 'EndgeShadcnSfcDataTable' })
@@ -55,11 +61,7 @@ defineOptions({ name: 'EndgeShadcnSfcDataTable' })
 const props = defineProps<EndgeShadcnTableProps>()
 const boundaryRegistry = inject(SFCVueBoundaryRegistryKey, null)
 const scrollRoot = ref<HTMLElement | null>(null)
-const baseRows = shallowRef(cloneRows(props.source))
-const scrollTop = ref(0)
-const viewportHeight = ref(360)
-const overscan = 8
-let resizeObserver: ResizeObserver | null = null
+const baseRows = shallowRef(copyRows(props.source))
 
 const tableStateKey = computed(() => props.tableId ? `table:${props.tableId}` : null)
 const sorting = ref<SortingState>(readInitialSorting())
@@ -67,7 +69,6 @@ const columnPinning = ref<ColumnPinningState>(readInitialPinning())
 const columnOrder = ref<ColumnOrderState>(readTableState('order', props.columns.map(column => column.key)))
 const columnVisibility = ref<VisibilityState>(readTableState('visibility', {}))
 const columnSizing = ref<ColumnSizingState>(readTableState('sizing', {}))
-const styledRows = computed(() => decorateSFCTableRows(baseRows.value, props.columns.length, props.styleContract))
 const columnDefinitions = computed<ColumnDef<Record<string, unknown>>[]>(() => props.columns.map(column => ({
   id: column.key,
   accessorFn: row => row[column.key],
@@ -79,12 +80,7 @@ const columnDefinitions = computed<ColumnDef<Record<string, unknown>>[]>(() => p
   enablePinning: props.pinMode !== 'disabled' && column.pinnable,
   enableSorting: props.sortMode !== 'disabled' && column.sort?.sortable === true,
   sortingFn: (left, right) => compareRows(left.original, right.original, column),
-  cell: ({ row }) => props.renderCell(
-    column,
-    row.original,
-    row.index,
-    row.id,
-  ),
+  cell: ({ row }) => renderTableCell(column, row),
   meta: {
     title: column.title,
     endgeColumn: column,
@@ -92,7 +88,7 @@ const columnDefinitions = computed<ColumnDef<Record<string, unknown>>[]>(() => p
 })))
 
 const table = useVueTable({
-  get data() { return styledRows.value },
+  get data() { return baseRows.value },
   get columns() { return columnDefinitions.value },
   getRowId: (row, index) => normalizeRowId(row[props.rowKey], index),
   getCoreRowModel: getCoreRowModel(),
@@ -116,36 +112,67 @@ const table = useVueTable({
 })
 
 const tableRows = computed(() => table.getRowModel().rows)
-const virtualRange = computed(() => {
-  const count = tableRows.value.length
-  if (count <= 120) return { start: 0, end: count }
-  const start = Math.max(0, Math.floor(scrollTop.value / props.rowSize) - overscan)
-  const visible = Math.ceil(viewportHeight.value / props.rowSize) + overscan * 2
-  return { start, end: Math.min(count, start + visible) }
+const rowVirtualizer = useVirtualizer<HTMLElement, HTMLTableRowElement>(computed(() => ({
+  count: tableRows.value.length,
+  estimateSize: () => props.rowSize,
+  getItemKey: index => tableRows.value[index]?.id ?? index,
+  getScrollElement: () => scrollRoot.value,
+  initialRect: { width: 0, height: Math.max(360, props.rowSize * 10) },
+  overscan: 10,
+})))
+const virtualItems = computed(() => rowVirtualizer.value.getVirtualItems())
+const virtualRows = computed<VirtualTableRow[]>(() => {
+  const items = virtualItems.value
+  if (items.length === 0) return []
+
+  const rows = items
+    .map(item => tableRows.value[item.index])
+    .filter((row): row is Row<Record<string, unknown>> => row != null)
+  const styledRows = decorateSFCTableRowWindow(
+    rows.map(row => row.original),
+    props.columns.length,
+    props.styleContract,
+    items[0]!.index,
+    tableRows.value.length,
+  )
+
+  return rows.map((row, index) => ({
+    virtualItem: items[index]!,
+    row,
+    styledRow: styledRows[index] ?? row.original,
+  }))
 })
-const visibleRows = computed(() => tableRows.value.slice(virtualRange.value.start, virtualRange.value.end))
-const topSpacerHeight = computed(() => virtualRange.value.start * props.rowSize)
-const bottomSpacerHeight = computed(() => Math.max(0, (tableRows.value.length - virtualRange.value.end) * props.rowSize))
+const virtualRowContexts = computed(() => new Map(
+  virtualRows.value.map(entry => [entry.row.id, entry] as const),
+))
+const virtualBodyHeight = computed(() => tableRows.value.length === 0 ? 96 : rowVirtualizer.value.getTotalSize())
 const visibleColumnCount = computed(() => Math.max(1, table.getVisibleLeafColumns().length))
+const tableWidth = computed(() => {
+  columnSizing.value
+  columnVisibility.value
+  return `${table.getTotalSize()}px`
+})
+
+interface VirtualTableRow {
+  virtualItem: VirtualItem
+  row: Row<Record<string, unknown>>
+  styledRow: Record<string, unknown>
+}
 
 const defaultColumnMenu: ContextMenuDescriptor = {
   kind: 'context-menu',
   items: [
-    menuItem(TABLE_RUNTIME_ACTION_IDS.columnPinLeft),
-    menuItem(TABLE_RUNTIME_ACTION_IDS.columnPinRight),
-    menuItem(TABLE_RUNTIME_ACTION_IDS.columnUnpin),
-    menuItem(TABLE_RUNTIME_ACTION_IDS.columnResetPin),
-    menuItem(TABLE_RUNTIME_ACTION_IDS.columnResetAllPins),
-    { kind: 'separator', id: 'pin-sort-separator' },
-    menuItem(TABLE_RUNTIME_ACTION_IDS.sortSetColumnAsc),
-    menuItem(TABLE_RUNTIME_ACTION_IDS.sortSetColumnDesc),
-    menuItem(TABLE_RUNTIME_ACTION_IDS.sortClearColumn),
-    { kind: 'separator', id: 'sort-separator' },
-    menuItem(TABLE_RUNTIME_ACTION_IDS.sortClearAll),
+    menuItem(TABLE_RUNTIME_ACTION_IDS.sortSetColumnAsc, 'Sort ascending', 'arrow-up'),
+    menuItem(TABLE_RUNTIME_ACTION_IDS.sortSetColumnDesc, 'Sort descending', 'arrow-down'),
+    { kind: 'separator', id: 'sort-visibility-separator' },
+    menuItem(TABLE_RUNTIME_ACTION_IDS.columnHide, 'Hide', 'eye-off'),
   ],
 }
 
 const tableActionTarget: TableRuntimeActionTarget = {
+  setColumnVisibility: async (columnKey, visible) => {
+    table.getColumn(columnKey)?.toggleVisibility(visible)
+  },
   setColumnPin: async (columnKey, side) => {
     table.getColumn(columnKey)?.pin(side === 'none' ? false : side)
   },
@@ -169,7 +196,7 @@ const unregisterBoundary = boundaryRegistry?.register(props.boundaryId, {
 watch(
   () => [props.source, props.renderVersion] as const,
   ([source]) => {
-    baseRows.value = cloneRows(source)
+    baseRows.value = copyRows(source)
   },
 )
 watch(
@@ -177,17 +204,23 @@ watch(
   () => reconcileColumnState(),
 )
 
-onMounted(() => {
-  resizeObserver = new ResizeObserver(([entry]) => {
-    if (entry) viewportHeight.value = entry.contentRect.height
-  })
-  if (scrollRoot.value) resizeObserver.observe(scrollRoot.value)
-})
 onBeforeUnmount(() => {
   unregisterBoundary?.()
-  resizeObserver?.disconnect()
-  closeEndgeContextMenu(props.boundaryId)
+  closeShadcnMenu(props.boundaryId)
 })
+
+function renderTableCell(
+  column: EndgeShadcnTableColumn,
+  row: Row<Record<string, unknown>>,
+) {
+  const virtualRow = virtualRowContexts.value.get(row.id)
+  return props.renderCell(
+    column,
+    virtualRow?.styledRow ?? row.original,
+    virtualRow?.virtualItem.index ?? row.index,
+    row.id,
+  )
+}
 
 function updateSorting(updater: Updater<SortingState>): void {
   if (props.sortMode === 'disabled' || props.sortMode === 'fixed')
@@ -273,7 +306,11 @@ function setColumnSort(columnKey: string, direction: TableSortDirection): void {
     : sorting.value.map(item => item.id === columnKey ? next : item))
 }
 
-function openColumnMenu(column: Column<Record<string, unknown>>, event: MouseEvent): void {
+function openColumnMenu(
+  column: Column<Record<string, unknown>>,
+  event: MouseEvent,
+  anchorKind: 'element' | 'point',
+): void {
   const descriptor = getColumnDescriptor(column)
   const menu = resolveColumnMenu(descriptor)
   if (!menu) return
@@ -282,19 +319,28 @@ function openColumnMenu(column: Column<Record<string, unknown>>, event: MouseEve
     return
   event.preventDefault()
   event.stopPropagation()
-  openEndgeContextMenu({
+  openShadcnMenu({
     ownerId: props.boundaryId,
-    x: event.clientX,
-    y: event.clientY,
+    anchor: anchorKind === 'element'
+      ? elementMenuAnchor(event.currentTarget as Element)
+      : pointMenuAnchor(event.clientX, event.clientY),
     menu,
     context,
   })
 }
 
-function resolveColumnMenu(column: EndgeShadcnTableColumn): ContextMenuDescriptor | null {
+function onColumnHeaderClick(column: Column<Record<string, unknown>>, event: MouseEvent): void {
+  if (resolveColumnMenu(getColumnDescriptor(column))) {
+    openColumnMenu(column, event, 'element')
+    return
+  }
+  if (column.getCanSort() && props.sortMode !== 'fixed') column.toggleSorting()
+}
+
+function resolveColumnMenu(_column: EndgeShadcnTableColumn): ContextMenuDescriptor | null {
   if (props.columnMenu.mode === 'disabled') return null
   if (props.columnMenu.mode === 'inline') return props.columnMenu.menu
-  return (column.sort?.sortable || (props.pinMode !== 'disabled' && column.pinnable)) ? defaultColumnMenu : null
+  return defaultColumnMenu
 }
 
 function createColumnActionContext(
@@ -311,6 +357,7 @@ function createColumnActionContext(
     target: tableActionTarget,
     columnKey: column.id,
     columnIndex: descriptor.index,
+    hideable: column.getCanHide(),
     pinnable: descriptor.pinnable,
     pinMode: props.pinMode,
     pinState: (column.getIsPinned() || 'none') as TableColumnPinSide,
@@ -330,7 +377,7 @@ function createColumnActionContext(
 async function applyRuntimePatch(patch: RuntimeBoundaryPatch): Promise<boolean> {
   if (patch.kind !== 'collection-projection-update' || patch.boundaryId !== props.boundaryId)
     return false
-  const next = cloneRows(baseRows.value)
+  const next = copyRows(baseRows.value)
   const rowIndex = resolvePatchedRowIndex(next, patch)
   if (rowIndex < 0) return false
   if (!isPlainObject(patch.itemSnapshot)) return false
@@ -349,10 +396,6 @@ function resolvePatchedRowIndex(rows: Record<string, unknown>[], patch: RuntimeB
   return patch.itemIndex != null && patch.itemIndex >= 0 && patch.itemIndex < rows.length ? patch.itemIndex : -1
 }
 
-function onScroll(event: Event): void {
-  scrollTop.value = (event.currentTarget as HTMLElement).scrollTop
-}
-
 function getColumnDescriptor(column: Column<Record<string, unknown>>): EndgeShadcnTableColumn {
   return (column.columnDef.meta as any).endgeColumn as EndgeShadcnTableColumn
 }
@@ -366,7 +409,18 @@ function getPinnedStyle(column: Column<Record<string, unknown>>): CSSProperties 
     width: `${column.getSize()}px`,
     minWidth: `${column.getSize()}px`,
     maxWidth: `${column.getSize()}px`,
+    flex: `0 0 ${column.getSize()}px`,
     zIndex: pinned ? 3 : 1,
+  }
+}
+
+function getVirtualRowStyle(virtualItem: VirtualItem): CSSProperties {
+  return {
+    display: 'flex',
+    height: `${virtualItem.size}px`,
+    position: 'absolute',
+    transform: `translateY(${virtualItem.start}px)`,
+    width: '100%',
   }
 }
 
@@ -444,8 +498,8 @@ function toEndgePinning(value: ColumnPinningState): ComponentSFCTableColumnPinSt
   ]
 }
 
-function cloneRows(rows: readonly Record<string, unknown>[]): Record<string, unknown>[] {
-  return rows.map(row => ({ ...row }))
+function copyRows(rows: readonly Record<string, unknown>[]): Record<string, unknown>[] {
+  return [...rows]
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -457,8 +511,8 @@ function normalizeRowId(value: unknown, index: number): string {
   return normalized || String(index)
 }
 
-function menuItem(id: string) {
-  return { kind: 'item' as const, id, label: id, action: id }
+function menuItem(id: string, label: string, icon: string) {
+  return { kind: 'item' as const, id, label, action: id, icon }
 }
 </script>
 
@@ -476,9 +530,14 @@ function menuItem(id: string) {
       ref="scrollRoot"
       v-bind="styleContract.grid.attrs"
       class="endge-shadcn-table__viewport"
-      @scroll.passive="onScroll"
     >
-      <table data-slot="table" class="endge-shadcn-table__table">
+      <table
+        data-slot="table"
+        data-virtualized="true"
+        :data-row-count="tableRows.length"
+        class="endge-shadcn-table__table"
+        :style="{ width: tableWidth }"
+      >
         <thead v-bind="styleContract.header.attrs" class="endge-shadcn-table__header">
           <tr>
             <th
@@ -488,14 +547,14 @@ function menuItem(id: string) {
               class="endge-shadcn-table__head"
               :class="{ 'endge-shadcn-table__head--pinned': header.column.getIsPinned() }"
               :style="getPinnedStyle(header.column)"
-              @contextmenu="openColumnMenu(header.column, $event)"
+              @contextmenu="openColumnMenu(header.column, $event, 'point')"
             >
               <button
                 type="button"
                 class="endge-shadcn-table__sort"
                 :class="{ 'endge-shadcn-table__sort--enabled': header.column.getIsSorted() }"
-                :disabled="!header.column.getCanSort() || sortMode === 'fixed'"
-                @click="header.column.getToggleSortingHandler()?.($event)"
+                :disabled="!header.column.getCanSort() && !resolveColumnMenu(getColumnDescriptor(header.column))"
+                @click="onColumnHeaderClick(header.column, $event)"
               >
                 <span v-bind="getColumnDescriptor(header.column).styleSurfaces.headerContent.attrs" class="endge-shadcn-table__head-title">
                   <FlexRender :render="header.column.columnDef.header" :props="header.getContext()" />
@@ -503,20 +562,11 @@ function menuItem(id: string) {
                 <span v-if="header.column.getCanSort()" class="endge-shadcn-table__sort-icon">
                   <ArrowUp v-if="header.column.getIsSorted() === 'asc'" :size="14" />
                   <ArrowDown v-else-if="header.column.getIsSorted() === 'desc'" :size="14" />
-                  <ArrowUpDown v-else :size="14" />
+                  <ChevronsUpDown v-else :size="14" />
                   <span v-if="getSortIndex(header.column.id) != null && sorting.length > 1" class="endge-shadcn-table__sort-index">
                     {{ getSortIndex(header.column.id) }}
                   </span>
                 </span>
-              </button>
-              <button
-                v-if="resolveColumnMenu(getColumnDescriptor(header.column))"
-                type="button"
-                class="endge-shadcn-table__menu"
-                aria-label="Меню колонки"
-                @click="openColumnMenu(header.column, $event)"
-              >
-                <MoreHorizontal :size="15" />
               </button>
               <div
                 v-if="header.column.getCanResize()"
@@ -530,19 +580,23 @@ function menuItem(id: string) {
           </tr>
         </thead>
 
-        <tbody v-bind="styleContract.body.attrs" class="endge-shadcn-table__body">
-          <tr v-if="topSpacerHeight > 0" aria-hidden="true"><td :colspan="visibleColumnCount" :style="{ height: `${topSpacerHeight}px`, padding: 0 }" /></tr>
+        <tbody
+          v-bind="styleContract.body.attrs"
+          class="endge-shadcn-table__body"
+          :style="{ height: `${virtualBodyHeight}px` }"
+        >
           <tr
-            v-for="row in visibleRows"
-            :key="row.id"
+            v-for="virtualRow in virtualRows"
+            :key="String(virtualRow.virtualItem.key)"
+            :data-index="virtualRow.virtualItem.index"
             class="endge-shadcn-table__row"
-            :class="getRowClass(row.original)"
-            :style="{ height: `${rowSize}px` }"
+            :class="getRowClass(virtualRow.styledRow)"
+            :style="getVirtualRowStyle(virtualRow.virtualItem)"
           >
             <td
-              v-for="cell in row.getVisibleCells()"
+              v-for="cell in virtualRow.row.getVisibleCells()"
               :key="cell.id"
-              v-bind="getCellAttrs(row.original, getColumnDescriptor(cell.column))"
+              v-bind="getCellAttrs(virtualRow.styledRow, getColumnDescriptor(cell.column))"
               class="endge-shadcn-table__cell"
               :class="{ 'endge-shadcn-table__cell--pinned': cell.column.getIsPinned() }"
               :style="getPinnedStyle(cell.column)"
@@ -550,7 +604,6 @@ function menuItem(id: string) {
               <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
             </td>
           </tr>
-          <tr v-if="bottomSpacerHeight > 0" aria-hidden="true"><td :colspan="visibleColumnCount" :style="{ height: `${bottomSpacerHeight}px`, padding: 0 }" /></tr>
           <tr v-if="tableRows.length === 0">
             <td :colspan="visibleColumnCount" class="endge-shadcn-table__empty">Нет данных</td>
           </tr>

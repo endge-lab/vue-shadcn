@@ -1,22 +1,22 @@
 import { Endge } from '@endge/core'
-import { SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS } from '@endge/ui-vue'
 import { describe, expect, it } from 'vitest'
 import { h, isVNode } from 'vue'
 
-import { ShadcnVueSFCAdapter } from '@/model/render/sfc/shadcn-vue-sfc-adapter'
-import { ShadcnVueRender_Grid } from '@/model/render/sfc/shadcn-vue-renderers'
+import { SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS } from '@/domain/types/sfc-render.type'
+import { VueShadcnSFCAdapter } from '@/model/render/sfc/vue-shadcn-sfc-adapter'
+import { VueShadcnRender_Grid } from '@/model/render/sfc/vue-shadcn-renderers'
 
-describe('ShadcnVueRender_Grid', () => {
+describe('VueShadcnRender_Grid', () => {
   it('completes the required adapter contract', () => {
-    expect(Object.keys(ShadcnVueSFCAdapter.renderers))
+    expect(Object.keys(VueShadcnSFCAdapter.renderers))
       .toEqual(SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS)
     Endge.uiRegistry.adapters.reset()
-    expect(() => Endge.uiRegistry.adapters.register(ShadcnVueSFCAdapter)).not.toThrow()
+    expect(() => Endge.uiRegistry.adapters.register(VueShadcnSFCAdapter)).not.toThrow()
     Endge.uiRegistry.adapters.reset()
   })
 
   it('renders Grid tracks and spacing', () => {
-    const grid = ShadcnVueRender_Grid({
+    const grid = VueShadcnRender_Grid({
       h,
       props: { columns: 12, gap: 2, autoRows: '28px' },
       attrs: {},

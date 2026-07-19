@@ -8,25 +8,26 @@ export default defineConfig({
   build: {
     lib: {
       entry: path.resolve(__dirname, 'src/main.ts'),
-      name: 'shadcn-vue',
+      name: 'vue-shadcn',
       formats: ['es'],
-      fileName: () => 'shadcn-vue.js',
+      fileName: () => 'vue-shadcn.js',
     },
     cssCodeSplit: false,
     rollupOptions: {
       external: [
         '@endge/core',
+        '@endge/raph',
         '@endge/utils',
-        '@endge/ui-vue',
         '@lucide/vue',
         '@tanstack/vue-table',
+        '@tanstack/vue-virtual',
         'sortablejs',
         'vue',
       ],
       output: {
         assetFileNames: (assetInfo) => {
           if (assetInfo.name?.endsWith('.css'))
-            return 'shadcn-vue.css'
+            return 'vue-shadcn.css'
 
           return 'assets/[name]-[hash][extname]'
         },

@@ -9,10 +9,9 @@ import type {
 } from '@endge/core'
 import type {
   SFCVueRenderResult,
-  SFCTableColumnStyleSurfaces,
-  SFCTableStyleContract,
   SFCVueRuntimeStateController,
-} from '@endge/ui-vue'
+} from '@/domain/types/sfc-render.type'
+import type { SFCTableColumnStyleSurfaces, SFCTableStyleContract } from '@/ui/render/sfc/SFCRender_TableStyle'
 
 export interface EndgeShadcnTableColumnSort {
   sortable: boolean

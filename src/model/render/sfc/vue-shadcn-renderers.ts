@@ -1,6 +1,6 @@
 import type { SourceFieldOption, SourceFieldType } from '@endge/core'
 import { isoToDateInput, isoToDateTimeLocalInput, timeToTimeInput } from '@endge/utils'
-import type { SFCVueRenderAdapterFunction } from '@endge/ui-vue'
+import type { SFCVueRenderAdapterFunction } from '@/domain/types/sfc-render.type'
 
 import ShadcnCheckbox from '@/ui/primitives/ShadcnCheckbox.vue'
 import ShadcnBadge from '@/ui/primitives/ShadcnBadge.vue'
@@ -12,7 +12,7 @@ import ShadcnTextarea from '@/ui/primitives/ShadcnTextarea.vue'
 
 type SFCInputType = Extract<SourceFieldType, 'String' | 'Number' | 'Date' | 'Time' | 'DateTime'>
 
-export const ShadcnVueRender_Text: SFCVueRenderAdapterFunction = (input) => {
+export const VueShadcnRender_Text: SFCVueRenderAdapterFunction = (input) => {
   const content = input.props.value == null ? input.children : String(input.props.value)
 
   return input.h('span', {
@@ -21,7 +21,7 @@ export const ShadcnVueRender_Text: SFCVueRenderAdapterFunction = (input) => {
   }, content)
 }
 
-export const ShadcnVueRender_DateTime: SFCVueRenderAdapterFunction = (input) => {
+export const VueShadcnRender_DateTime: SFCVueRenderAdapterFunction = (input) => {
   return input.h('time', {
     ...input.attrs,
     class: ['endge-sfc-datetime', 'endge-shadcn-datetime', input.props.class],
@@ -29,14 +29,14 @@ export const ShadcnVueRender_DateTime: SFCVueRenderAdapterFunction = (input) => 
   }, formatDateTime(input.props.value, input.props.format))
 }
 
-export const ShadcnVueRender_Number: SFCVueRenderAdapterFunction = (input) => {
+export const VueShadcnRender_Number: SFCVueRenderAdapterFunction = (input) => {
   return input.h('span', {
     ...input.attrs,
     class: ['endge-sfc-number', 'endge-shadcn-number', input.props.class],
   }, formatNumber(input.props.value, input.props))
 }
 
-export const ShadcnVueRender_Icon: SFCVueRenderAdapterFunction = (input) => {
+export const VueShadcnRender_Icon: SFCVueRenderAdapterFunction = (input) => {
   const name = input.props.name ?? input.props.icon ?? ''
   const size = Number(input.props.size ?? 16)
 
@@ -49,7 +49,7 @@ export const ShadcnVueRender_Icon: SFCVueRenderAdapterFunction = (input) => {
   })
 }
 
-export const ShadcnVueRender_Badge: SFCVueRenderAdapterFunction = (input) => {
+export const VueShadcnRender_Badge: SFCVueRenderAdapterFunction = (input) => {
   return input.h(ShadcnBadge, {
     ...input.attrs,
     class: ['endge-sfc-badge', 'endge-shadcn-badge', input.props.class],
@@ -57,7 +57,7 @@ export const ShadcnVueRender_Badge: SFCVueRenderAdapterFunction = (input) => {
   }, { default: () => input.children })
 }
 
-export const ShadcnVueRender_Dot: SFCVueRenderAdapterFunction = (input) => {
+export const VueShadcnRender_Dot: SFCVueRenderAdapterFunction = (input) => {
   const size = Number(input.props.size ?? 8)
 
   return input.h('span', {
@@ -72,14 +72,14 @@ export const ShadcnVueRender_Dot: SFCVueRenderAdapterFunction = (input) => {
   })
 }
 
-export const ShadcnVueRender_Box: SFCVueRenderAdapterFunction = (input) => {
+export const VueShadcnRender_Box: SFCVueRenderAdapterFunction = (input) => {
   return input.h('div', {
     ...input.attrs,
     class: ['endge-sfc-box', 'endge-shadcn-box', input.props.class],
   }, input.children)
 }
 
-export const ShadcnVueRender_Flex: SFCVueRenderAdapterFunction = (input) => {
+export const VueShadcnRender_Flex: SFCVueRenderAdapterFunction = (input) => {
   const isColumn = input.props.col === true || input.props.direction === 'column'
 
   return input.h('div', {
@@ -97,7 +97,7 @@ export const ShadcnVueRender_Flex: SFCVueRenderAdapterFunction = (input) => {
   }, input.children)
 }
 
-export const ShadcnVueRender_Grid: SFCVueRenderAdapterFunction = (input) => {
+export const VueShadcnRender_Grid: SFCVueRenderAdapterFunction = (input) => {
   return input.h('div', {
     ...input.attrs,
     class: ['endge-sfc-grid', 'endge-shadcn-grid', input.props.class],
@@ -117,7 +117,7 @@ export const ShadcnVueRender_Grid: SFCVueRenderAdapterFunction = (input) => {
   }, input.children)
 }
 
-export const ShadcnVueRender_Divider: SFCVueRenderAdapterFunction = (input) => {
+export const VueShadcnRender_Divider: SFCVueRenderAdapterFunction = (input) => {
   const vertical = input.props.vertical === true || input.props.orientation === 'vertical'
 
   return input.h(ShadcnSeparator, {
@@ -128,7 +128,7 @@ export const ShadcnVueRender_Divider: SFCVueRenderAdapterFunction = (input) => {
   })
 }
 
-export const ShadcnVueRender_Input: SFCVueRenderAdapterFunction = (input) => {
+export const VueShadcnRender_Input: SFCVueRenderAdapterFunction = (input) => {
   const type = normalizeInputType(input.props.type)
 
   return input.h(ShadcnInput, {
@@ -145,7 +145,7 @@ export const ShadcnVueRender_Input: SFCVueRenderAdapterFunction = (input) => {
   })
 }
 
-export const ShadcnVueRender_Textarea: SFCVueRenderAdapterFunction = (input) => {
+export const VueShadcnRender_Textarea: SFCVueRenderAdapterFunction = (input) => {
   return input.h(ShadcnTextarea, {
     ...input.attrs,
     class: ['endge-sfc-textarea', 'endge-shadcn-textarea', input.props.class],
@@ -157,7 +157,7 @@ export const ShadcnVueRender_Textarea: SFCVueRenderAdapterFunction = (input) => 
   })
 }
 
-export const ShadcnVueRender_Checkbox: SFCVueRenderAdapterFunction = (input) => {
+export const VueShadcnRender_Checkbox: SFCVueRenderAdapterFunction = (input) => {
   return input.h(ShadcnCheckbox, {
     ...input.attrs,
     class: ['endge-sfc-checkbox-field', 'endge-shadcn-checkbox-field', input.props.class],
@@ -168,7 +168,7 @@ export const ShadcnVueRender_Checkbox: SFCVueRenderAdapterFunction = (input) => 
   })
 }
 
-export const ShadcnVueRender_Select: SFCVueRenderAdapterFunction = (input) => {
+export const VueShadcnRender_Select: SFCVueRenderAdapterFunction = (input) => {
   const multiple = input.props.multiple === true
 
   return input.h(ShadcnSelect, {

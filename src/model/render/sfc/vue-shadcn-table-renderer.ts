@@ -6,24 +6,23 @@ import {
   normalizeComponentSFCTableSort,
   normalizeComponentSFCTableSortMode,
 } from '@endge/core'
-import type { SFCVueRenderContext, SFCVueRenderFunction } from '@endge/ui-vue'
+import type { SFCVueRenderContext, SFCVueRenderFunction } from '@/domain/types/sfc-render.type'
 import {
   createSFCTableColumnStyleSurfaces,
   createSFCTableStyleContract,
-  evaluateSFCProps,
-  evaluateSFCValue,
-  extendSFCVueRenderContext,
   getSFCTableCellStyleSurfaces,
-  normalizeSFCTableCellAlignment,
-  renderSFCNodes,
-  SFCRender_Base,
-} from '@endge/ui-vue'
+} from '@/ui/render/sfc/SFCRender_TableStyle'
+import { evaluateSFCProps, evaluateSFCValue } from '@/ui/render/sfc/SFCRender_Evaluator'
+import { extendSFCVueRenderContext } from '@/ui/render/sfc/SFCRender_Context'
+import { renderSFCNodes } from '@/ui/render/sfc/SFCRender_Node'
+import { SFCRender_Base } from '@/ui/render/sfc/SFCRender_Base'
+import { normalizeSFCTableCellAlignment } from '@/ui/render/sfc/SFCRender_TableAlignment'
 
 import type { EndgeShadcnTableColumn } from '@/ui/table/table.types'
 import ShadcnSfcDataTable from '@/ui/table/ShadcnSfcDataTable.vue'
 
 /** Shadcn/TanStack implementation of the compound SFC Table tag. */
-export const ShadcnVueRender_Table: SFCVueRenderFunction = SFCRender_Base((input) => {
+export const VueShadcnRender_Table: SFCVueRenderFunction = SFCRender_Base((input) => {
   const rows = normalizeRows(input.props.rows)
   const explicitHeight = input.props.height ?? input.props.h
   const fillsAvailableHeight = explicitHeight == null || explicitHeight === ''
@@ -159,7 +158,7 @@ function normalizeColumnKey(
 
 function normalizeRows(value: unknown): Record<string, unknown>[] {
   if (!Array.isArray(value)) return []
-  return value.map((row, index) => isPlainObject(row) ? { ...row } : { id: index, value: row })
+  return value.map((row, index) => isPlainObject(row) ? row : { id: index, value: row })
 }
 
 function normalizeText(value: unknown, fallback: string): string {

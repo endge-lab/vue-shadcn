@@ -11,23 +11,17 @@ import {
   ENDGE_SFC_RENDER_ADAPTER_PROTOCOL_VERSION,
   Endge,
 } from '@endge/core'
-import {
-  createSFCVueRenderContext,
-  EndgeFilterRenderer,
-  EndgeVueModule,
-  NativeVueSFCAdapter,
-  renderSFCNode,
-  SFC_Renderer,
-  SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS,
-} from '@endge/ui-vue'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createApp, h, isVNode, nextTick, type VNode } from 'vue'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createApp, h, isVNode, nextTick, type Component, type VNode } from 'vue'
 
-import { EndgeShadcnVueModule } from '@/domain/core/endge-shadcn-vue'
+import { SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS } from '@/domain/types/sfc-render.type'
+import { EndgeVueShadcnModule } from '@/domain/core/endge-vue-shadcn'
 import {
-  SHADCN_VUE_SFC_ADAPTER_ID,
-  ShadcnVueSFCAdapter,
-} from '@/model/render/sfc/shadcn-vue-sfc-adapter'
+  VUE_SHADCN_SFC_ADAPTER_ID,
+  VueShadcnSFCAdapter,
+} from '@/model/render/sfc/vue-shadcn-sfc-adapter'
+import { createSFCVueRenderContext } from '@/ui/render/sfc/SFCRender_Context'
+import { renderSFCNode } from '@/ui/render/sfc/SFCRender_Node'
 
 const TEST_WORKSPACE: EndgeWorkspaceDefinition = {
   identity: 'workspace-test',
@@ -46,23 +40,24 @@ const TEST_WORKSPACE: EndgeWorkspaceDefinition = {
     ],
     defaultTheme: 'light',
     defaultAuthProfileIdentity: null,
-    sfcAdapterIds: ['native-vue', 'shadcn-vue'],
-    defaultSfcAdapterId: 'shadcn-vue',
+    sfcAdapterIds: ['native-vue', 'vue-shadcn'],
+    defaultSfcAdapterId: 'vue-shadcn',
     diagnostics: createDiagnosticsConfiguration(),
   },
 }
 
-describe('ShadcnVueSFCAdapter', () => {
+describe('VueShadcnSFCAdapter', () => {
   beforeEach(() => {
     Endge.uiRegistry.adapters.reset()
     Endge.workspace.apply(TEST_WORKSPACE)
-    new EndgeShadcnVueModule().setup()
+    new EndgeVueShadcnModule().setup()
     Endge.uiRegistry.adapters.activate({
-      id: SHADCN_VUE_SFC_ADAPTER_ID,
+      id: VUE_SHADCN_SFC_ADAPTER_ID,
       protocol: ENDGE_SFC_RENDER_ADAPTER_PROTOCOL,
       protocolVersion: ENDGE_SFC_RENDER_ADAPTER_PROTOCOL_VERSION,
-      renderer: 'vue',
+      renderer: 'vue-shadcn',
       requiredRendererKeys: SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS,
+      requiredRootKeys: ['shell', 'sfc', 'sfc-runtime', 'filter-view'],
     })
   })
 
@@ -72,8 +67,9 @@ describe('ShadcnVueSFCAdapter', () => {
   })
 
   it('registers the complete Vue adapter contract', () => {
-    expect(Endge.uiRegistry.adapters.active?.id).toBe('shadcn-vue')
-    expect(Object.keys(ShadcnVueSFCAdapter.renderers)).toEqual(SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS)
+    expect(Endge.uiRegistry.adapters.active?.id).toBe('vue-shadcn')
+    expect(Object.keys(VueShadcnSFCAdapter.renderers)).toEqual(SFC_VUE_RENDER_ADAPTER_REQUIRED_KEYS)
+    expect(Object.keys(VueShadcnSFCAdapter.roots)).toEqual(['shell', 'sfc', 'sfc-runtime', 'filter-view'])
   })
 
   it.each([
@@ -157,173 +153,47 @@ describe('ShadcnVueSFCAdapter', () => {
     }
   })
 
-  it('reactivates the workspace adapter after the workspace changes', () => {
-    const vueModule = new EndgeVueModule()
-    vueModule.setup()
-    Endge.workspace.apply({
-      ...TEST_WORKSPACE,
-      configuration: {
-        ...TEST_WORKSPACE.configuration,
-        sfcAdapterIds: ['native-vue', 'shadcn-vue'],
-        defaultSfcAdapterId: 'native-vue',
-      },
-    })
-    vueModule.build()
-    vueModule.start()
+  it('owns workspace activation without the Native Vue module', () => {
+    Endge.uiRegistry.adapters.reset()
+    const module = new EndgeVueShadcnModule()
+    module.setup()
+    module.build()
+    module.start()
 
-    Endge.workspace.apply({
-      ...TEST_WORKSPACE,
-      configuration: {
-        ...TEST_WORKSPACE.configuration,
-        sfcAdapterIds: ['native-vue', 'shadcn-vue'],
-        defaultSfcAdapterId: 'shadcn-vue',
-      },
-    })
-
-    expect(Endge.uiRegistry.adapters.active?.id).toBe('shadcn-vue')
-    vueModule.reset()
+    expect(Endge.uiRegistry.adapters.active?.id).toBe('vue-shadcn')
+    expect(Endge.uiRegistry.adapters.active?.renderer).toBe('vue-shadcn')
+    expect(Endge.uiRegistry.adapters.active?.roots?.shell).toBeTruthy()
+    module.reset()
   })
 
-  it('rerenders a mounted SFC when the active adapter changes', async () => {
-    Endge.uiRegistry.adapters.register(NativeVueSFCAdapter)
-    Endge.uiRegistry.adapters.activate('native-vue')
-
-    const ir = {
-      version: 1 as const,
-      script: {
-        props: [],
-        locals: [],
-        ports: {
-          require: { computations: [], components: [], actions: [] },
-          provides: { actions: [] },
-          emits: { events: [] },
-          forward: { rules: [] },
-        },
-        portCalls: [],
-      },
-      template: {
-        roots: [{
-          id: 'switch-input',
-          kind: 'element' as const,
-          tag: 'Input' as const,
-          props: { value: literal('SU 1402') },
-          directives: {},
-          children: [],
-        }],
-      },
-      style: null,
-    }
-    const root = document.createElement('div')
-    const app = createApp({ render: () => h(SFC_Renderer, { ir }) })
-    app.mount(root)
-    await nextTick()
-    expect(root.querySelector('input')?.classList.contains('endge-shadcn-input')).toBe(false)
-
-    Endge.uiRegistry.adapters.activate('shadcn-vue')
-    await nextTick()
-    expect(root.querySelector('input')?.classList.contains('endge-shadcn-input')).toBe(true)
-    app.unmount()
-  })
-
-  it('renders the same generated Filter view through native and shadcn adapters', async () => {
-    Endge.uiRegistry.adapters.register(NativeVueSFCAdapter)
-    Endge.uiRegistry.adapters.activate('native-vue')
-    const setValue = vi.fn().mockResolvedValue(undefined)
+  it('renders generated filter views through its own adapter root', async () => {
     const runtime = {
       getRenderModel: () => ({
         implementation: { kind: 'generated' as const },
-        props: {
-          showLabels: true,
-          labels: {
-            search: 'Поиск рейса',
-            airports: 'Аэропорты',
-          },
-        },
-        fields: [
-          {
-            key: 'search', type: 'String' as const, optional: false, array: false,
-            control: { type: 'Input' as const }, value: 'SU', options: [],
-          },
-          {
-            key: 'airports', type: 'String' as const, optional: false, array: true,
-            control: { type: 'Select' as const }, value: ['SVO'],
-            options: [
-              { value: 'SVO', label: 'Шереметьево' },
-              { value: 'LED', label: 'Пулково' },
-            ],
-          },
-          {
-            key: 'cancelled', type: 'Boolean' as const, optional: false, array: false,
-            control: { type: 'Checkbox' as const }, value: true, options: [],
-          },
-        ],
-      }),
-      setValue,
-      on: vi.fn(),
-      off: vi.fn(),
-    } as unknown as FilterViewRuntimeHost
-    const root = document.createElement('div')
-    const app = createApp({ render: () => h(EndgeFilterRenderer, { runtime }) })
-    app.mount(root)
-    await nextTick()
-
-    expect(root.querySelector('input')?.classList.contains('endge-shadcn-input')).toBe(false)
-    expect(root.querySelector('select')?.multiple).toBe(true)
-    expect((root.querySelector('input[type="checkbox"]') as HTMLInputElement | null)?.checked).toBe(true)
-    expect([...root.querySelectorAll('.endge-filter-field__label')].map(node => node.textContent)).toEqual([
-      'Поиск рейса',
-      'Аэропорты',
-    ])
-
-    Endge.uiRegistry.adapters.activate('shadcn-vue')
-    await nextTick()
-    expect(root.querySelector('input')?.classList.contains('endge-shadcn-input')).toBe(true)
-    expect(root.querySelector('.endge-shadcn-select')).not.toBeNull()
-    expect(root.querySelector('.endge-shadcn-checkbox')).not.toBeNull()
-    expect(root.textContent).toContain('Поиск рейса')
-
-    const multiselectTrigger = root.querySelector('.endge-shadcn-multiselect-trigger') as HTMLButtonElement
-    multiselectTrigger.click()
-    await nextTick()
-    const pulkovo = [...root.querySelectorAll<HTMLButtonElement>('.endge-shadcn-multiselect-option')]
-      .find(option => option.textContent?.includes('Пулково'))
-    pulkovo?.click()
-    await nextTick()
-    expect(setValue).toHaveBeenCalledWith('airports', ['SVO', 'LED'])
-
-    const input = root.querySelector('input[type="text"]') as HTMLInputElement
-    input.value = 'S7'
-    input.dispatchEvent(new Event('input', { bubbles: true }))
-    await nextTick()
-    expect(setValue).toHaveBeenCalledWith('search', 'S7')
-
-    app.unmount()
-  })
-
-  it('allows the generated Filter view to hide labels above fields', async () => {
-    const runtime = {
-      getRenderModel: () => ({
-        implementation: { kind: 'generated' as const },
-        props: {
-          showLabels: false,
-          labels: { search: 'Поиск рейса' },
-        },
+        props: {},
         fields: [{
-          key: 'search', type: 'String' as const, optional: false, array: false,
-          control: { type: 'Input' as const }, value: 'SU', options: [],
+          key: 'search',
+          type: 'String' as const,
+          optional: true,
+          array: false,
+          control: { type: 'Input' as const },
+          value: 'SU 1402',
+          options: [],
         }],
       }),
-      setValue: vi.fn().mockResolvedValue(undefined),
-      on: vi.fn(),
-      off: vi.fn(),
+      on: () => undefined,
+      off: () => undefined,
+      setValue: async () => undefined,
     } as unknown as FilterViewRuntimeHost
     const root = document.createElement('div')
-    const app = createApp({ render: () => h(EndgeFilterRenderer, { runtime }) })
+    const component = VueShadcnSFCAdapter.roots['filter-view'] as Component
+    const app = createApp({ render: () => h(component, { runtime }) })
+
     app.mount(root)
     await nextTick()
 
-    expect(root.querySelector('.endge-filter-field__label')).toBeNull()
-    expect(root.querySelector('input[type="text"]')).not.toBeNull()
+    expect(root.querySelector('input')?.value).toBe('SU 1402')
+    expect(root.querySelector('.endge-shadcn-filter-renderer')).not.toBeNull()
     app.unmount()
   })
 })
