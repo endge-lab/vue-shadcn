@@ -69,6 +69,12 @@ import ShadcnTableColumnManager from './ShadcnTableColumnManager.vue'
 defineOptions({ name: 'EndgeShadcnSfcDataTable' })
 
 const props = withDefaults(defineProps<EndgeShadcnTableProps>(), {
+  columns: () => [],
+  source: () => [],
+  defaultSort: () => [],
+  defaultPin: () => [],
+  defaultHidden: () => [],
+  rowSize: 40,
   paging: 'pages',
   pageSize: 10,
   pageSizes: () => [10, 25, 50, 100],
@@ -81,9 +87,9 @@ const baseRows = shallowRef(copyRows(props.source))
 const tableStateKey = computed(() => props.tableId ? `table:${props.tableId}` : null)
 const sorting = ref<SortingState>(readInitialSorting())
 const columnPinning = ref<ColumnPinningState>(readInitialPinning())
-const columnOrder = ref<ColumnOrderState>(readTableState('order', props.columns.map(column => column.key)))
+const columnOrder = ref<ColumnOrderState>(readTableArrayState('order', props.columns.map(column => column.key)))
 const columnVisibility = ref<VisibilityState>(readInitialVisibility())
-const columnSizing = ref<ColumnSizingState>(readTableState('sizing', {}))
+const columnSizing = ref<ColumnSizingState>(readTableRecordState('sizing', {}))
 const pagination = ref<PaginationState>(readInitialPagination())
 const columnDefinitions = computed<ColumnDef<Record<string, unknown>>[]>(() => props.columns.map(column => ({
   id: column.key,
@@ -330,22 +336,26 @@ function resolveUpdater<T>(updater: Updater<T>, current: T): T {
 
 function readInitialSorting(): SortingState {
   const fallback = props.sortMode === 'disabled' ? [] : props.defaultSort
-  const persisted = readTableState<ComponentSFCTableSortStateItem[]>('sort', fallback)
+  const persisted = readTableArrayState<ComponentSFCTableSortStateItem>('sort', fallback)
   const allowed = new Set(props.columns.filter(column => column.sort?.sortable).map(column => column.key))
   const normalized = persisted
-    .filter(item => allowed.has(item.key) && (item.direction === 'asc' || item.direction === 'desc'))
+    .filter(isTableSortStateItem)
+    .filter(item => allowed.has(item.key))
     .map(item => ({ id: item.key, desc: item.direction === 'desc' }))
   return props.sortMode === 'single' ? normalized.slice(0, 1) : normalized
 }
 
 function readInitialPinning(): ColumnPinningState {
   if (props.pinMode === 'disabled') return { left: [], right: [] }
-  return toTanStackPinning(readTableState('pin', props.defaultPin))
+  return toTanStackPinning(
+    readTableArrayState<ComponentSFCTableColumnPinStateItem>('pin', props.defaultPin)
+      .filter(isTablePinStateItem),
+  )
 }
 
 function readInitialVisibility(): VisibilityState {
   const fallback = Object.fromEntries(props.defaultHidden.map(key => [key, false]))
-  const stored = readTableState<VisibilityState>('visibility', fallback)
+  const stored = readTableRecordState<VisibilityState>('visibility', fallback)
   const known = new Set(props.columns.map(column => column.key))
 
   return Object.fromEntries(
@@ -357,7 +367,18 @@ function readTableState<T>(section: string, fallback: T): T {
   const key = tableStateKey.value
   if (!props.runtimeState || !key)
     return fallback
-  return props.runtimeState.get(key, section, fallback)
+  const value = props.runtimeState.get<unknown>(key, section, fallback)
+  return value == null ? fallback : value as T
+}
+
+function readTableArrayState<T>(section: string, fallback: T[]): T[] {
+  const value = readTableState<unknown>(section, fallback)
+  return Array.isArray(value) ? value as T[] : fallback
+}
+
+function readTableRecordState<T extends Record<string, unknown>>(section: string, fallback: T): T {
+  const value = readTableState<unknown>(section, fallback)
+  return isPlainObject(value) ? value as T : fallback
 }
 
 function persistTableState<T>(section: string, value: T): void {
@@ -578,6 +599,18 @@ function toTanStackPinning(value: ComponentSFCTableColumnPinStateItem[]): Column
     left: value.filter(item => item.side === 'left').map(item => item.key),
     right: value.filter(item => item.side === 'right').map(item => item.key),
   }
+}
+
+function isTableSortStateItem(value: unknown): value is ComponentSFCTableSortStateItem {
+  if (!isPlainObject(value)) return false
+  return typeof value.key === 'string'
+    && (value.direction === 'asc' || value.direction === 'desc')
+}
+
+function isTablePinStateItem(value: unknown): value is ComponentSFCTableColumnPinStateItem {
+  if (!isPlainObject(value)) return false
+  return typeof value.key === 'string'
+    && (value.side === 'left' || value.side === 'right')
 }
 
 function toEndgePinning(value: ColumnPinningState): ComponentSFCTableColumnPinStateItem[] {

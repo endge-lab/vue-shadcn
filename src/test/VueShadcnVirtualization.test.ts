@@ -11,13 +11,59 @@ import type {
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createApp, h, nextTick } from 'vue'
 
-import type { EndgeShadcnTableColumn } from '@/ui/table/table.types'
+import type { EndgeShadcnTableColumn, EndgeShadcnTableProps } from '@/ui/table/table.types'
 import ShadcnSfcDataTable from '@/ui/table/ShadcnSfcDataTable.vue'
 
 describe('VueShadcnSfcDataTable virtualization', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
+  })
+
+  it('uses safe collection defaults and ignores malformed persisted table state', async () => {
+    vi.stubGlobal('ResizeObserver', class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    })
+
+    const runtimeState = {
+      runtimeId: 'runtime-test',
+      storageKey: 'runtime-test',
+      get<T>(): T {
+        return undefined as T
+      },
+      set(): void {},
+      remove(): void {},
+      clear(): void {},
+    }
+    const root = document.createElement('div')
+    const app = createApp({
+      render: () => h(ShadcnSfcDataTable, {
+        boundaryId: 'defaults-test',
+        tableId: 'defaults',
+        runtimeState,
+        columns: createColumns(),
+        source: [{ id: '1', flight: 'SU 100', gate: 'A1' }],
+        styleContract: createStyleContract(),
+        rowKey: 'id',
+        sortMode: 'multiple',
+        pinMode: 'enabled',
+        columnMenu: { mode: 'disabled', menu: null, diagnostics: [] },
+        defaultSort: undefined,
+        defaultPin: undefined,
+        defaultHidden: undefined,
+        rowSize: 40,
+        renderVersion: 0,
+        renderCell: (column: EndgeShadcnTableColumn, row: Record<string, unknown>) => h('span', String(row[column.key] ?? '')),
+      } as unknown as EndgeShadcnTableProps),
+    })
+
+    expect(() => app.mount(root)).not.toThrow()
+    await nextTick()
+    expect(root.querySelector('.endge-shadcn-table')).not.toBeNull()
+
+    app.unmount()
   })
 
   it('uses pagination defaults with lazy and virtualizes the active page', async () => {
