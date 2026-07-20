@@ -40,6 +40,10 @@ const VIRTUAL_TABLE_SOURCE = TABLE_SOURCE.replace(
   'sort-mode="multiple"',
   'sort-mode="multiple" paging="virtual"',
 )
+const HIDDEN_GATE_TABLE_SOURCE = TABLE_SOURCE.replace(
+  'sort-mode="multiple"',
+  'sort-mode="multiple" default-hidden="gate"',
+)
 
 const ROWS = [
   { id: '2', flight: 'SU 200', gate: 'B12' },
@@ -127,6 +131,23 @@ describe('VueShadcnRender_Table', () => {
 
     expect(readHeaders(mounted.root)).toEqual(['Flight'])
     expect(runtimeState.set).toHaveBeenCalledWith('table:flights', 'visibility', { gate: false })
+    mounted.unmount()
+  })
+
+  it('uses default-hidden as the initial TanStack visibility state', async () => {
+    const mounted = await mountTable(null, HIDDEN_GATE_TABLE_SOURCE)
+
+    expect(readHeaders(mounted.root)).toEqual(['Flight'])
+
+    mounted.root.querySelector<HTMLButtonElement>('.endge-shadcn-table-column-manager__trigger')?.click()
+    await nextTick()
+    const gateVisibility = [...mounted.root.querySelectorAll<HTMLButtonElement>('[role="checkbox"]')]
+      .find(button => button.textContent?.includes('Gate'))
+
+    expect(gateVisibility?.getAttribute('aria-checked')).toBe('false')
+    gateVisibility?.click()
+    await nextTick()
+    expect(readHeaders(mounted.root)).toEqual(['Flight', 'Gate'])
     mounted.unmount()
   })
 

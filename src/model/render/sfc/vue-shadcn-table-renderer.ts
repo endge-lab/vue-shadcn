@@ -3,6 +3,7 @@ import {
   normalizeComponentSFCTableColumnMenu,
   normalizeComponentSFCTableColumnPin,
   normalizeComponentSFCTableColumnPinMode,
+  normalizeComponentSFCTableColumnVisibility,
   normalizeComponentSFCTableSort,
   normalizeComponentSFCTableSortMode,
 } from '@endge/core'
@@ -29,6 +30,7 @@ export const VueShadcnRender_Table: SFCVueRenderFunction = SFCRender_Base((input
   const rowKey = normalizeText(input.props['row-key'] ?? input.props.rowKey, 'id')
   const sortDescriptor = normalizeComponentSFCTableSort(input.node)
   const pinDescriptor = normalizeComponentSFCTableColumnPin(input.node)
+  const visibilityDescriptor = normalizeComponentSFCTableColumnVisibility(input.node)
   const columnMenuDescriptor = normalizeComponentSFCTableColumnMenu(input.node)
   const styleContract = createSFCTableStyleContract(input.context)
   const columns = collectTableColumns(input.node, input.context, sortDescriptor, pinDescriptor, styleContract)
@@ -70,6 +72,7 @@ export const VueShadcnRender_Table: SFCVueRenderFunction = SFCRender_Base((input
       columnMenu: columnMenuDescriptor,
       defaultSort: sortDescriptor.defaultSort,
       defaultPin: pinDescriptor.defaultPin,
+      defaultHidden: visibilityDescriptor.defaultHidden,
       rowSize: normalizeNumber(input.props.rowSize, 40),
       paging: normalizeTablePaging(input.props.paging),
       pageSize: normalizeNumber(input.props['page-size'] ?? input.props.pageSize, 10),

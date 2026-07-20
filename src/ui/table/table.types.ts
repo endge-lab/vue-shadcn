@@ -47,6 +47,7 @@ export interface EndgeShadcnTableProps {
   columnMenu: ComponentSFCTableColumnMenuDescriptor
   defaultSort: ComponentSFCTableSortStateItem[]
   defaultPin: ComponentSFCTableColumnPinStateItem[]
+  defaultHidden: string[]
   rowSize: number
   paging?: EndgeShadcnTablePaging
   pageSize?: number

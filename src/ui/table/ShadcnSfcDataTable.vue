@@ -82,7 +82,7 @@ const tableStateKey = computed(() => props.tableId ? `table:${props.tableId}` : 
 const sorting = ref<SortingState>(readInitialSorting())
 const columnPinning = ref<ColumnPinningState>(readInitialPinning())
 const columnOrder = ref<ColumnOrderState>(readTableState('order', props.columns.map(column => column.key)))
-const columnVisibility = ref<VisibilityState>(readTableState('visibility', {}))
+const columnVisibility = ref<VisibilityState>(readInitialVisibility())
 const columnSizing = ref<ColumnSizingState>(readTableState('sizing', {}))
 const pagination = ref<PaginationState>(readInitialPagination())
 const columnDefinitions = computed<ColumnDef<Record<string, unknown>>[]>(() => props.columns.map(column => ({
@@ -237,6 +237,12 @@ watch(
   () => props.columns.map(column => column.key).join('|'),
   () => reconcileColumnState(),
 )
+watch(
+  () => props.defaultHidden.join('|'),
+  () => {
+    columnVisibility.value = readInitialVisibility()
+  },
+)
 
 onBeforeUnmount(() => {
   unregisterBoundary?.()
@@ -337,6 +343,16 @@ function readInitialPinning(): ColumnPinningState {
   return toTanStackPinning(readTableState('pin', props.defaultPin))
 }
 
+function readInitialVisibility(): VisibilityState {
+  const fallback = Object.fromEntries(props.defaultHidden.map(key => [key, false]))
+  const stored = readTableState<VisibilityState>('visibility', fallback)
+  const known = new Set(props.columns.map(column => column.key))
+
+  return Object.fromEntries(
+    Object.entries(stored).filter(([key, visible]) => known.has(key) && typeof visible === 'boolean'),
+  )
+}
+
 function readTableState<T>(section: string, fallback: T): T {
   const key = tableStateKey.value
   if (!props.runtimeState || !key)
@@ -361,6 +377,9 @@ function reconcileColumnState(): void {
     left: (columnPinning.value.left ?? []).filter(key => keys.includes(key)),
     right: (columnPinning.value.right ?? []).filter(key => keys.includes(key)),
   }
+  columnVisibility.value = Object.fromEntries(
+    Object.entries(columnVisibility.value).filter(([key]) => keys.includes(key)),
+  )
 }
 
 function setColumnSort(columnKey: string, direction: TableSortDirection): void {
