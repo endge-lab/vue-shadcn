@@ -66,6 +66,42 @@ describe('VueShadcnSfcDataTable virtualization', () => {
     app.unmount()
   })
 
+  it('does not crash setup when collection props contain null from a stale runtime artifact', async () => {
+    vi.stubGlobal('ResizeObserver', class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    })
+    const root = document.createElement('div')
+    const app = createApp({
+      render: () => h(ShadcnSfcDataTable, {
+        boundaryId: 'malformed-collections-test',
+        tableId: 'malformed',
+        runtimeState: null,
+        columns: null,
+        source: null,
+        styleContract: createStyleContract(),
+        rowKey: 'id',
+        sortMode: 'multiple',
+        pinMode: 'enabled',
+        columnMenu: { mode: 'disabled', menu: null, diagnostics: [] },
+        defaultSort: null,
+        defaultPin: null,
+        defaultHidden: null,
+        pageSizes: null,
+        eventBindings: null,
+        rowSize: 40,
+        renderVersion: 0,
+        renderCell: () => null,
+      } as unknown as EndgeShadcnTableProps),
+    })
+
+    expect(() => app.mount(root)).not.toThrow()
+    await nextTick()
+    expect(root.querySelector('.endge-shadcn-table__empty')?.textContent).toContain('Нет данных')
+    app.unmount()
+  })
+
   it('uses pagination defaults with lazy and virtualizes the active page', async () => {
     vi.stubGlobal('ResizeObserver', class {
       observe() {}
@@ -204,7 +240,7 @@ describe('VueShadcnSfcDataTable virtualization', () => {
     })
     vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400)
     vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800)
-    const emitChild = vi.fn(async (_source: unknown, _name: string, _payload: unknown) => undefined)
+    const routeChild = vi.fn(async (_source: unknown, _name: string, _payload: unknown) => undefined)
     const root = document.createElement('div')
     const app = createApp({
       render: () => h(ShadcnSfcDataTable, {
@@ -212,7 +248,7 @@ describe('VueShadcnSfcDataTable virtualization', () => {
         nodeId: 'table-node',
         tableRef: 'table',
         tableId: 'flights',
-        eventBoundary: { emitChild } as any,
+        eventBoundary: { routeChild } as any,
         selectionMode: 'multiple',
         runtimeState: null,
         columns: createColumns(),
@@ -233,7 +269,7 @@ describe('VueShadcnSfcDataTable virtualization', () => {
     app.mount(root)
     await nextTick()
     await new Promise(resolve => setTimeout(resolve, 0))
-    expect(emitChild).not.toHaveBeenCalled()
+    expect(routeChild).not.toHaveBeenCalled()
 
     const row = root.querySelector<HTMLElement>('.endge-shadcn-table__row')!
     row.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -241,17 +277,17 @@ describe('VueShadcnSfcDataTable virtualization', () => {
     row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 12, clientY: 24 }))
     await nextTick()
 
-    expect(emitChild.mock.calls.map(call => call[1])).toEqual([
+    expect(routeChild.mock.calls.map(call => call[1])).toEqual([
       'selectionChanged',
       'rowActivated',
       'rowContextMenuRequested',
     ])
-    expect(emitChild.mock.calls[0]?.[2]).toMatchObject({
+    expect(routeChild.mock.calls[0]?.[2]).toMatchObject({
       tableId: 'flights',
       mode: 'multiple',
       selectedRowIds: ['1'],
     })
-    expect(emitChild.mock.calls[2]?.[2]).toMatchObject({
+    expect(routeChild.mock.calls[2]?.[2]).toMatchObject({
       rowId: '1',
       anchor: { x: 12, y: 24 },
     })

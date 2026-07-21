@@ -6,6 +6,7 @@ import type {
   ComponentSFCTableSortMode,
   ComponentSFCTableSortStateItem,
   ComponentSFCEventBoundary,
+  RComponentSFC_IR_EventBinding,
   RComponentSFC_IR_Node,
   TableSelectionMode,
 } from '@endge/core'
@@ -42,6 +43,7 @@ export interface EndgeShadcnTableProps {
   tableRef?: string | null
   tableId: string
   eventBoundary?: ComponentSFCEventBoundary | null
+  eventBindings?: RComponentSFC_IR_EventBinding[]
   selectionMode?: TableSelectionMode
   runtimeState: SFCVueRuntimeStateController | null
   columns: EndgeShadcnTableColumn[]

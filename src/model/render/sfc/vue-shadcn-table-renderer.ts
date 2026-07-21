@@ -65,6 +65,7 @@ export const VueShadcnRender_Table: SFCVueRenderFunction = SFCRender_Base((input
       tableRef: normalizeOptionalText(input.props.ref ?? input.attrs.ref),
       tableId,
       eventBoundary: input.context.eventBoundary,
+      eventBindings: input.node.events ?? [],
       selectionMode: normalizeSelectionMode(input.props['selection-mode'] ?? input.props.selectionMode),
       runtimeState: input.context.runtimeState,
       columns,

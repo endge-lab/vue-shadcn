@@ -74,6 +74,7 @@ defineOptions({ name: 'EndgeShadcnSfcDataTable' })
 const props = withDefaults(defineProps<EndgeShadcnTableProps>(), {
   columns: () => [],
   source: () => [],
+  eventBindings: () => [],
   defaultSort: () => [],
   defaultPin: () => [],
   defaultHidden: () => [],
@@ -84,6 +85,12 @@ const props = withDefaults(defineProps<EndgeShadcnTableProps>(), {
   lazy: false,
   selectionMode: 'none',
 })
+const tableColumns = computed<EndgeShadcnTableColumn[]>(() => Array.isArray(props.columns) ? props.columns : [])
+const defaultSortItems = computed<ComponentSFCTableSortStateItem[]>(() => Array.isArray(props.defaultSort) ? props.defaultSort : [])
+const defaultPinItems = computed<ComponentSFCTableColumnPinStateItem[]>(() => Array.isArray(props.defaultPin) ? props.defaultPin : [])
+const defaultHiddenKeys = computed<string[]>(() => Array.isArray(props.defaultHidden) ? props.defaultHidden : [])
+const pageSizeItems = computed<number[]>(() => Array.isArray(props.pageSizes) ? props.pageSizes : [10, 25, 50, 100])
+const runtimeEventBindings = computed(() => Array.isArray(props.eventBindings) ? props.eventBindings : [])
 const boundaryRegistry = inject(SFCVueBoundaryRegistryKey, null)
 const scrollRoot = ref<HTMLElement | null>(null)
 const baseRows = shallowRef(copyRows(props.source))
@@ -91,14 +98,14 @@ const baseRows = shallowRef(copyRows(props.source))
 const tableStateKey = computed(() => props.tableId ? `table:${props.tableId}` : null)
 const sorting = ref<SortingState>(readInitialSorting())
 const columnPinning = ref<ColumnPinningState>(readInitialPinning())
-const columnOrder = ref<ColumnOrderState>(readTableArrayState('order', props.columns.map(column => column.key)))
+const columnOrder = ref<ColumnOrderState>(readTableArrayState('order', tableColumns.value.map(column => column.key)))
 const columnVisibility = ref<VisibilityState>(readInitialVisibility())
 const columnSizing = ref<ColumnSizingState>(readTableRecordState('sizing', {}))
 const pagination = ref<PaginationState>(readInitialPagination())
 const selectedRowIds = shallowRef<Set<string>>(new Set())
 const selectionAnchorId = ref<string | null>(null)
 let columnSizeTimer: ReturnType<typeof setTimeout> | null = null
-const columnDefinitions = computed<ColumnDef<Record<string, unknown>>[]>(() => props.columns.map(column => ({
+const columnDefinitions = computed<ColumnDef<Record<string, unknown>>[]>(() => tableColumns.value.map(column => ({
   id: column.key,
   accessorFn: row => row[column.key],
   header: column.title,
@@ -149,7 +156,7 @@ const tableRows = computed(() => props.paging === 'virtual'
 const totalRowCount = computed(() => table.getPrePaginationRowModel().rows.length)
 const pageCount = computed(() => Math.max(1, table.getPageCount()))
 const currentPage = computed(() => Math.min(pagination.value.pageIndex + 1, pageCount.value))
-const pageSizeOptions = computed(() => [...new Set([...props.pageSizes, pagination.value.pageSize])]
+const pageSizeOptions = computed(() => [...new Set([...pageSizeItems.value, pagination.value.pageSize])]
   .filter(size => Number.isFinite(size) && size > 0)
   .sort((left, right) => left - right))
 const pageOffset = computed(() => props.paging === 'pages'
@@ -173,7 +180,7 @@ const virtualRows = computed<VirtualTableRow[]>(() => {
     .filter((row): row is Row<Record<string, unknown>> => row != null)
   const styledRows = decorateSFCTableRowWindow(
     rows.map(row => row.original),
-    props.columns.length,
+    tableColumns.value.length,
     props.styleContract,
     pageOffset.value + items[0]!.index,
     totalRowCount.value,
@@ -222,11 +229,11 @@ const tableActionTarget: TableRuntimeActionTarget = {
     table.getColumn(columnKey)?.pin(side === 'none' ? false : side)
   },
   resetColumnPin: async (columnKey) => {
-    const fallback = props.defaultPin.find(item => item.key === columnKey)?.side ?? false
+    const fallback = defaultPinItems.value.find(item => item.key === columnKey)?.side ?? false
     table.getColumn(columnKey)?.pin(fallback)
   },
   resetAllPins: async () => {
-    updatePinning(toTanStackPinning(props.defaultPin))
+    updatePinning(toTanStackPinning(defaultPinItems.value))
   },
   setColumnSort: async (columnKey, direction) => setColumnSort(columnKey, direction),
   clearColumnSort: async columnKey => setSorting(sorting.value.filter(item => item.id !== columnKey)),
@@ -247,11 +254,11 @@ watch(
   },
 )
 watch(
-  () => props.columns.map(column => column.key).join('|'),
+  () => tableColumns.value.map(column => column.key).join('|'),
   () => reconcileColumnState(),
 )
 watch(
-  () => props.defaultHidden.join('|'),
+  () => defaultHiddenKeys.value.join('|'),
   () => {
     columnVisibility.value = readInitialVisibility()
   },
@@ -368,7 +375,7 @@ function updateColumnVisibility(updater: Updater<VisibilityState>): void {
   if (JSON.stringify(next) === JSON.stringify(columnVisibility.value)) return
   columnVisibility.value = next
   persistTableState('visibility', next)
-  const visibility = Object.fromEntries(props.columns.map(column => [column.key, next[column.key] !== false]))
+  const visibility = Object.fromEntries(tableColumns.value.map(column => [column.key, next[column.key] !== false]))
   emitTableEvent('columnVisibilityChanged', {
     tableId: effectiveTableId(),
     visibility,
@@ -401,9 +408,9 @@ function resolveUpdater<T>(updater: Updater<T>, current: T): T {
 }
 
 function readInitialSorting(): SortingState {
-  const fallback = props.sortMode === 'disabled' ? [] : props.defaultSort
+  const fallback = props.sortMode === 'disabled' ? [] : defaultSortItems.value
   const persisted = readTableArrayState<ComponentSFCTableSortStateItem>('sort', fallback)
-  const allowed = new Set(props.columns.filter(column => column.sort?.sortable).map(column => column.key))
+  const allowed = new Set(tableColumns.value.filter(column => column.sort?.sortable).map(column => column.key))
   const normalized = persisted
     .filter(isTableSortStateItem)
     .filter(item => allowed.has(item.key))
@@ -414,15 +421,15 @@ function readInitialSorting(): SortingState {
 function readInitialPinning(): ColumnPinningState {
   if (props.pinMode === 'disabled') return { left: [], right: [] }
   return toTanStackPinning(
-    readTableArrayState<ComponentSFCTableColumnPinStateItem>('pin', props.defaultPin)
+    readTableArrayState<ComponentSFCTableColumnPinStateItem>('pin', defaultPinItems.value)
       .filter(isTablePinStateItem),
   )
 }
 
 function readInitialVisibility(): VisibilityState {
-  const fallback = Object.fromEntries(props.defaultHidden.map(key => [key, false]))
+  const fallback = Object.fromEntries(defaultHiddenKeys.value.map(key => [key, false]))
   const stored = readTableRecordState<VisibilityState>('visibility', fallback)
-  const known = new Set(props.columns.map(column => column.key))
+  const known = new Set(tableColumns.value.map(column => column.key))
 
   return Object.fromEntries(
     Object.entries(stored).filter(([key, visible]) => known.has(key) && typeof visible === 'boolean'),
@@ -455,7 +462,7 @@ function persistTableState<T>(section: string, value: T): void {
 }
 
 function reconcileColumnState(): void {
-  const keys = props.columns.map(column => column.key)
+  const keys = tableColumns.value.map(column => column.key)
   columnOrder.value = [
     ...columnOrder.value.filter(key => keys.includes(key)),
     ...keys.filter(key => !columnOrder.value.includes(key)),
@@ -524,7 +531,7 @@ function createColumnActionContext(
   descriptor: EndgeShadcnTableColumn,
 ): TableColumnActionContext {
   const sortIndex = sorting.value.findIndex(item => item.id === column.id)
-  const defaultPin = props.defaultPin.find(item => item.key === column.id)?.side ?? 'none'
+  const defaultPin = defaultPinItems.value.find(item => item.key === column.id)?.side ?? 'none'
   return {
     surface: 'table-column-header',
     runtimeId: props.runtimeState?.runtimeId ?? props.boundaryId,
@@ -538,7 +545,7 @@ function createColumnActionContext(
     pinMode: props.pinMode,
     pinState: (column.getIsPinned() || 'none') as TableColumnPinSide,
     defaultPinState: defaultPin,
-    hasPinChanges: JSON.stringify(toEndgePinning(columnPinning.value)) !== JSON.stringify(props.defaultPin),
+    hasPinChanges: JSON.stringify(toEndgePinning(columnPinning.value)) !== JSON.stringify(defaultPinItems.value),
     sortable: descriptor.sort?.sortable === true,
     sortMode: props.sortMode,
     sortState: {
@@ -633,7 +640,9 @@ function eventSource(): ComponentSFCEventRuntimeSource {
 }
 
 function emitTableEvent<TName extends TableEventName>(name: TName, payload: TableEventMap[TName]): void {
-  void props.eventBoundary?.emitChild(eventSource(), name, payload)
+  const boundary = props.eventBoundary
+  if (boundary && typeof boundary.routeChild === 'function')
+    void boundary.routeChild(eventSource(), name, payload, runtimeEventBindings.value)
 }
 
 function resolveColumnKey(event: MouseEvent | KeyboardEvent): string | null {
@@ -801,8 +810,8 @@ function toEndgePinning(value: ColumnPinningState): ComponentSFCTableColumnPinSt
   ]
 }
 
-function copyRows(rows: readonly Record<string, unknown>[]): Record<string, unknown>[] {
-  return [...rows]
+function copyRows(rows: unknown): Record<string, unknown>[] {
+  return Array.isArray(rows) ? rows.filter(isPlainObject) : []
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -841,7 +850,7 @@ function menuItem(id: string, label: string, icon: string) {
         <span>{{ totalRowCount }}</span>
         <span class="endge-shadcn-table__summary-label">строк</span>
       </div>
-      <ShadcnTableColumnManager v-if="columns.length > 1" :table="table" />
+      <ShadcnTableColumnManager v-if="tableColumns.length > 1" :table="table" />
     </div>
 
     <div
