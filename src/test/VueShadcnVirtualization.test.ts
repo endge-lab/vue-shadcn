@@ -195,6 +195,68 @@ describe('VueShadcnSfcDataTable virtualization', () => {
 
     app.unmount()
   })
+
+  it('publishes renderer-neutral row and selection Events without initial occurrences', async () => {
+    vi.stubGlobal('ResizeObserver', class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    })
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400)
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800)
+    const emitChild = vi.fn(async (_source: unknown, _name: string, _payload: unknown) => undefined)
+    const root = document.createElement('div')
+    const app = createApp({
+      render: () => h(ShadcnSfcDataTable, {
+        boundaryId: 'events-test',
+        nodeId: 'table-node',
+        tableRef: 'table',
+        tableId: 'flights',
+        eventBoundary: { emitChild } as any,
+        selectionMode: 'multiple',
+        runtimeState: null,
+        columns: createColumns(),
+        source: [{ id: '1', flight: 'SU 100', gate: 'A1' }],
+        styleContract: createStyleContract(),
+        rowKey: 'id',
+        sortMode: 'multiple',
+        pinMode: 'disabled',
+        columnMenu: { mode: 'disabled', menu: null, diagnostics: [] },
+        defaultSort: [],
+        defaultPin: [],
+        defaultHidden: [],
+        rowSize: 40,
+        renderVersion: 0,
+        renderCell: (column, row) => h('span', String(row[column.key] ?? '')),
+      }),
+    })
+    app.mount(root)
+    await nextTick()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(emitChild).not.toHaveBeenCalled()
+
+    const row = root.querySelector<HTMLElement>('.endge-shadcn-table__row')!
+    row.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 12, clientY: 24 }))
+    await nextTick()
+
+    expect(emitChild.mock.calls.map(call => call[1])).toEqual([
+      'selectionChanged',
+      'rowActivated',
+      'rowContextMenuRequested',
+    ])
+    expect(emitChild.mock.calls[0]?.[2]).toMatchObject({
+      tableId: 'flights',
+      mode: 'multiple',
+      selectedRowIds: ['1'],
+    })
+    expect(emitChild.mock.calls[2]?.[2]).toMatchObject({
+      rowId: '1',
+      anchor: { x: 12, y: 24 },
+    })
+    app.unmount()
+  })
 })
 
 function createColumns(): EndgeShadcnTableColumn[] {

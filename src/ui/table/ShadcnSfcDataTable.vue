@@ -15,11 +15,14 @@ import type { VirtualItem } from '@tanstack/vue-virtual'
 import type {
   ComponentSFCTableColumnPinStateItem,
   ComponentSFCTableSortStateItem,
+  ComponentSFCEventRuntimeSource,
   ContextMenuDescriptor,
   RuntimeBoundaryPatch,
   TableColumnActionContext,
   TableColumnPinSide,
   TableRuntimeActionTarget,
+  TableEventMap,
+  TableEventName,
   TableSortDirection,
 } from '@endge/core'
 import type { CSSProperties } from 'vue'
@@ -79,6 +82,7 @@ const props = withDefaults(defineProps<EndgeShadcnTableProps>(), {
   pageSize: 10,
   pageSizes: () => [10, 25, 50, 100],
   lazy: false,
+  selectionMode: 'none',
 })
 const boundaryRegistry = inject(SFCVueBoundaryRegistryKey, null)
 const scrollRoot = ref<HTMLElement | null>(null)
@@ -91,6 +95,9 @@ const columnOrder = ref<ColumnOrderState>(readTableArrayState('order', props.col
 const columnVisibility = ref<VisibilityState>(readInitialVisibility())
 const columnSizing = ref<ColumnSizingState>(readTableRecordState('sizing', {}))
 const pagination = ref<PaginationState>(readInitialPagination())
+const selectedRowIds = shallowRef<Set<string>>(new Set())
+const selectionAnchorId = ref<string | null>(null)
+let columnSizeTimer: ReturnType<typeof setTimeout> | null = null
 const columnDefinitions = computed<ColumnDef<Record<string, unknown>>[]>(() => props.columns.map(column => ({
   id: column.key,
   accessorFn: row => row[column.key],
@@ -130,9 +137,9 @@ const table = useVueTable({
   },
   onSortingChange: updater => updateSorting(updater),
   onColumnPinningChange: updater => updatePinning(updater),
-  onColumnOrderChange: updater => updateState(columnOrder, updater, 'order'),
-  onColumnVisibilityChange: updater => updateState(columnVisibility, updater, 'visibility'),
-  onColumnSizingChange: updater => updateState(columnSizing, updater, 'sizing'),
+  onColumnOrderChange: updater => updateColumnOrder(updater),
+  onColumnVisibilityChange: updater => updateColumnVisibility(updater),
+  onColumnSizingChange: updater => updateColumnSizing(updater),
   onPaginationChange: updatePagination,
 })
 
@@ -219,8 +226,7 @@ const tableActionTarget: TableRuntimeActionTarget = {
     table.getColumn(columnKey)?.pin(fallback)
   },
   resetAllPins: async () => {
-    columnPinning.value = toTanStackPinning(props.defaultPin)
-    persistTableState('pin', toEndgePinning(columnPinning.value))
+    updatePinning(toTanStackPinning(props.defaultPin))
   },
   setColumnSort: async (columnKey, direction) => setColumnSort(columnKey, direction),
   clearColumnSort: async columnKey => setSorting(sorting.value.filter(item => item.id !== columnKey)),
@@ -237,6 +243,7 @@ watch(
     baseRows.value = copyRows(source)
     await nextTick()
     clampPagination()
+    reconcileSelection()
   },
 )
 watch(
@@ -251,6 +258,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  if (columnSizeTimer) clearTimeout(columnSizeTimer)
   unregisterBoundary?.()
   closeShadcnMenu(props.boundaryId)
 })
@@ -269,6 +277,7 @@ function renderTableCell(
 }
 
 function updatePagination(updater: Updater<PaginationState>): void {
+  const previous = pagination.value
   const next = resolveUpdater(updater, pagination.value)
   const pageSize = normalizePositiveInteger(next.pageSize, props.pageSize)
   const maxPageIndex = Math.max(0, Math.ceil(totalRowCount.value / pageSize) - 1)
@@ -279,6 +288,14 @@ function updatePagination(updater: Updater<PaginationState>): void {
   persistTableState('pagination', pagination.value)
   if (scrollRoot.value)
     scrollRoot.value.scrollTop = 0
+  if (previous.pageIndex !== pagination.value.pageIndex || previous.pageSize !== pagination.value.pageSize) {
+    emitTableEvent('pageChanged', {
+      tableId: effectiveTableId(),
+      pageIndex: pagination.value.pageIndex,
+      pageSize: pagination.value.pageSize,
+      pageCount: pageCount.value,
+    })
+  }
 }
 
 function setPageSize(event: Event): void {
@@ -312,20 +329,69 @@ function updateSorting(updater: Updater<SortingState>): void {
 }
 
 function setSorting(next: SortingState): void {
+  const previous = JSON.stringify(sorting.value)
   sorting.value = next
   persistTableState('sort', next.map(item => ({ key: item.id, direction: item.desc ? 'desc' : 'asc' })))
+  if (previous !== JSON.stringify(next)) {
+    emitTableEvent('sortChanged', {
+      tableId: effectiveTableId(),
+      sort: next.map(item => ({ columnKey: item.id, direction: item.desc ? 'desc' : 'asc' })),
+    })
+  }
 }
 
 function updatePinning(updater: Updater<ColumnPinningState>): void {
   if (props.pinMode === 'disabled')
     return
+  const previous = JSON.stringify(columnPinning.value)
   columnPinning.value = resolveUpdater(updater, columnPinning.value)
   persistTableState('pin', toEndgePinning(columnPinning.value))
+  if (previous !== JSON.stringify(columnPinning.value)) {
+    emitTableEvent('columnPinChanged', {
+      tableId: effectiveTableId(),
+      left: [...(columnPinning.value.left ?? [])],
+      right: [...(columnPinning.value.right ?? [])],
+    })
+  }
 }
 
-function updateState<T>(target: { value: T }, updater: Updater<T>, section: string): void {
-  target.value = resolveUpdater(updater, target.value)
-  persistTableState(section, target.value)
+function updateColumnOrder(updater: Updater<ColumnOrderState>): void {
+  const next = resolveUpdater(updater, columnOrder.value)
+  if (JSON.stringify(next) === JSON.stringify(columnOrder.value)) return
+  columnOrder.value = next
+  persistTableState('order', next)
+  emitTableEvent('columnOrderChanged', { tableId: effectiveTableId(), columnKeys: [...next] })
+}
+
+function updateColumnVisibility(updater: Updater<VisibilityState>): void {
+  const next = resolveUpdater(updater, columnVisibility.value)
+  if (JSON.stringify(next) === JSON.stringify(columnVisibility.value)) return
+  columnVisibility.value = next
+  persistTableState('visibility', next)
+  const visibility = Object.fromEntries(props.columns.map(column => [column.key, next[column.key] !== false]))
+  emitTableEvent('columnVisibilityChanged', {
+    tableId: effectiveTableId(),
+    visibility,
+    hiddenColumnKeys: Object.entries(visibility).filter(([, visible]) => !visible).map(([key]) => key),
+  })
+}
+
+function updateColumnSizing(updater: Updater<ColumnSizingState>): void {
+  const previous = columnSizing.value
+  const next = resolveUpdater(updater, previous)
+  if (JSON.stringify(next) === JSON.stringify(previous)) return
+  columnSizing.value = next
+  persistTableState('sizing', next)
+  const changedColumnKey = Object.keys(next).find(key => next[key] !== previous[key]) ?? null
+  if (columnSizeTimer) clearTimeout(columnSizeTimer)
+  columnSizeTimer = setTimeout(() => {
+    columnSizeTimer = null
+    emitTableEvent('columnSizeChanged', {
+      tableId: effectiveTableId(),
+      sizes: { ...columnSizing.value },
+      changedColumnKey,
+    })
+  }, 80)
 }
 
 function resolveUpdater<T>(updater: Updater<T>, current: T): T {
@@ -549,6 +615,121 @@ function getRowClass(row: Record<string, unknown>): string | string[] | undefine
   return undefined
 }
 
+function effectiveTableId(): string {
+  return props.tableId || props.boundaryId
+}
+
+function eventSource(): ComponentSFCEventRuntimeSource {
+  return {
+    nodeId: props.nodeId ?? props.boundaryId,
+    ref: props.tableRef ?? undefined,
+    componentTag: 'Table',
+    target: {
+      type: 'component.table',
+      identity: effectiveTableId(),
+      value: tableActionTarget,
+    },
+  }
+}
+
+function emitTableEvent<TName extends TableEventName>(name: TName, payload: TableEventMap[TName]): void {
+  void props.eventBoundary?.emitChild(eventSource(), name, payload)
+}
+
+function resolveColumnKey(event: MouseEvent | KeyboardEvent): string | null {
+  const element = event.target instanceof Element ? event.target.closest('td') : null
+  const index = element ? Array.from(element.parentElement?.children ?? []).indexOf(element) : -1
+  return index >= 0 ? table.getVisibleLeafColumns()[index]?.id ?? null : null
+}
+
+function activateRow(entry: VirtualTableRow, event: MouseEvent | KeyboardEvent): void {
+  emitTableEvent('rowActivated', {
+    tableId: effectiveTableId(),
+    rowId: entry.row.id,
+    rowIndex: entry.rowIndex,
+    row: entry.row.original,
+    columnKey: resolveColumnKey(event),
+    activation: event instanceof KeyboardEvent ? 'keyboard' : 'pointer',
+  })
+}
+
+function requestRowContextMenu(entry: VirtualTableRow, event: MouseEvent): void {
+  event.preventDefault()
+  emitTableEvent('rowContextMenuRequested', {
+    tableId: effectiveTableId(),
+    rowId: entry.row.id,
+    rowIndex: entry.rowIndex,
+    row: entry.row.original,
+    columnKey: resolveColumnKey(event),
+    anchor: { x: event.clientX, y: event.clientY },
+  })
+}
+
+function onRowClick(entry: VirtualTableRow, event: MouseEvent): void {
+  if (props.selectionMode === 'none') return
+  const next = new Set(selectedRowIds.value)
+  if (props.selectionMode === 'single') {
+    next.clear()
+    next.add(entry.row.id)
+  }
+  else if (event.shiftKey && selectionAnchorId.value) {
+    const rows = tableRows.value
+    const from = rows.findIndex(row => row.id === selectionAnchorId.value)
+    const to = rows.findIndex(row => row.id === entry.row.id)
+    if (from >= 0 && to >= 0) {
+      if (!event.metaKey && !event.ctrlKey) next.clear()
+      for (let index = Math.min(from, to); index <= Math.max(from, to); index += 1)
+        next.add(rows[index]!.id)
+    }
+  }
+  else if (event.metaKey || event.ctrlKey) {
+    if (next.has(entry.row.id)) next.delete(entry.row.id)
+    else next.add(entry.row.id)
+  }
+  else {
+    next.clear()
+    next.add(entry.row.id)
+  }
+  selectionAnchorId.value = entry.row.id
+  commitSelection(next)
+}
+
+function onRowKeydown(entry: VirtualTableRow, event: KeyboardEvent): void {
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    activateRow(entry, event)
+  }
+  else if (event.key === ' ') {
+    event.preventDefault()
+    onRowClick(entry, event as unknown as MouseEvent)
+  }
+}
+
+function commitSelection(next: Set<string>): void {
+  if (props.selectionMode === 'none') return
+  const previous = selectedRowIds.value
+  const addedRowIds = [...next].filter(id => !previous.has(id))
+  const removedRowIds = [...previous].filter(id => !next.has(id))
+  if (addedRowIds.length === 0 && removedRowIds.length === 0) return
+  selectedRowIds.value = next
+  const rowsById = new Map(table.getCoreRowModel().rows.map(row => [row.id, row.original] as const))
+  const selectedRowIdsOrdered = [...next].filter(id => rowsById.has(id))
+  emitTableEvent('selectionChanged', {
+    tableId: effectiveTableId(),
+    mode: props.selectionMode,
+    selectedRowIds: selectedRowIdsOrdered,
+    selectedRows: selectedRowIdsOrdered.map(id => rowsById.get(id)!),
+    addedRowIds,
+    removedRowIds,
+  })
+}
+
+function reconcileSelection(): void {
+  if (props.selectionMode === 'none' || selectedRowIds.value.size === 0) return
+  const available = new Set(table.getCoreRowModel().rows.map(row => row.id))
+  commitSelection(new Set([...selectedRowIds.value].filter(id => available.has(id))))
+}
+
 function getSortIndex(columnId: string): number | null {
   const index = sorting.value.findIndex(item => item.id === columnId)
   return index < 0 ? null : index + 1
@@ -728,8 +909,14 @@ function menuItem(id: string, label: string, icon: string) {
             :key="String(virtualRow.virtualItem.key)"
             :data-index="virtualRow.rowIndex"
             class="endge-shadcn-table__row"
-            :class="getRowClass(virtualRow.styledRow)"
+            :class="[getRowClass(virtualRow.styledRow), { 'endge-shadcn-table__row--selected': selectedRowIds.has(virtualRow.row.id) }]"
             :style="getVirtualRowStyle(virtualRow.virtualItem)"
+            :tabindex="selectionMode === 'none' ? -1 : 0"
+            :aria-selected="selectionMode === 'none' ? undefined : selectedRowIds.has(virtualRow.row.id)"
+            @click="onRowClick(virtualRow, $event)"
+            @dblclick="activateRow(virtualRow, $event)"
+            @contextmenu="requestRowContextMenu(virtualRow, $event)"
+            @keydown="onRowKeydown(virtualRow, $event)"
           >
             <td
               v-for="cell in virtualRow.row.getVisibleCells()"

@@ -61,7 +61,11 @@ export const VueShadcnRender_Table: SFCVueRenderFunction = SFCRender_Base((input
   }, [
     input.h(ShadcnSfcDataTable, {
       boundaryId: input.node.id,
+      nodeId: input.node.id,
+      tableRef: normalizeOptionalText(input.props.ref ?? input.attrs.ref),
       tableId,
+      eventBoundary: input.context.eventBoundary,
+      selectionMode: normalizeSelectionMode(input.props['selection-mode'] ?? input.props.selectionMode),
       runtimeState: input.context.runtimeState,
       columns,
       source: rows,
@@ -88,6 +92,8 @@ export const VueShadcnRender_Table: SFCVueRenderFunction = SFCRender_Base((input
         const cellContext = extendSFCVueRenderContext(tableContext, {
           row,
           rowIndex,
+          rowKey: rowId,
+          columnKey: column.key,
           value: row[column.key],
         }, tableContext.iteration, `${tableContext.consumerScope}/row:${rowId}/column:${column.key}`)
         const children = renderSFCNodes(input.h, column.cellNodes, cellContext)
@@ -171,6 +177,15 @@ function normalizeRows(value: unknown): Record<string, unknown>[] {
 function normalizeText(value: unknown, fallback: string): string {
   const source = String(value ?? '').trim()
   return source || fallback
+}
+
+function normalizeOptionalText(value: unknown): string | null {
+  const source = String(value ?? '').trim()
+  return source || null
+}
+
+function normalizeSelectionMode(value: unknown): 'none' | 'single' | 'multiple' {
+  return value === 'single' || value === 'multiple' ? value : 'none'
 }
 
 function normalizeNumber(value: unknown, fallback: number): number {

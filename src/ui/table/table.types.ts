@@ -5,7 +5,9 @@ import type {
   ComponentSFCTableSortComparator,
   ComponentSFCTableSortMode,
   ComponentSFCTableSortStateItem,
+  ComponentSFCEventBoundary,
   RComponentSFC_IR_Node,
+  TableSelectionMode,
 } from '@endge/core'
 import type {
   SFCVueRenderResult,
@@ -36,7 +38,11 @@ export type EndgeShadcnTablePaging = 'pages' | 'virtual'
 
 export interface EndgeShadcnTableProps {
   boundaryId: string
+  nodeId?: string
+  tableRef?: string | null
   tableId: string
+  eventBoundary?: ComponentSFCEventBoundary | null
+  selectionMode?: TableSelectionMode
   runtimeState: SFCVueRuntimeStateController | null
   columns: EndgeShadcnTableColumn[]
   source: Record<string, unknown>[]

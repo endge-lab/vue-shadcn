@@ -374,6 +374,15 @@
   background: var(--muted, #f4f4f5);
 }
 
+.endge-shadcn-table__row--selected {
+  background: var(--accent, #e4e4e7);
+}
+
+.endge-shadcn-table__row:focus-visible {
+  outline: 2px solid var(--ring, #18181b);
+  outline-offset: -2px;
+}
+
 .endge-shadcn-table__cell {
   background: inherit;
   border-bottom: 1px solid var(--border, #e4e4e7);
