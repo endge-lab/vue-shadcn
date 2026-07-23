@@ -34,6 +34,20 @@ await Endge.boot(context)
 
 Use `vue-shadcn` as the workspace `defaultSfcAdapterId`. The package only registers the adapter; workspace selection remains owned by Endge.
 
+Applications that need table-specific chrome can wrap the table runtime without changing the SFC or the Configurator renderer:
+
+```vue
+<ShadcnTableRuntimeRenderer
+  :host="tableHost"
+  :input="rendererInput"
+  :filter-runtime="filterHost"
+  show-search
+  show-filters
+/>
+```
+
+`show-search` currently renders UI state only; it does not filter table rows. `show-filters` renders the supplied `FilterViewRuntimeHost` in a collapsible panel. Both flags are optional and default to `false`, so the generic `SFC_RuntimeRenderer` and Configurator preview keep their existing table surface.
+
 This package does not import or inherit `@endge/ui-vue`. It owns its SFC render engine, DOM style runtime, runtime bridge, generated Filter view, Root Shell, and a single global context-menu manager. The adapter publishes opaque `shell`, `sfc`, `sfc-runtime`, and `filter-view` roots through the Core registry, so the application host selects the complete frontend path from the workspace adapter.
 
 The current roots are Vue components because this package is the Vue Shadcn adapter. Core treats them as opaque implementations; a future React or Canvas adapter can expose a different host contract without inheriting this package.

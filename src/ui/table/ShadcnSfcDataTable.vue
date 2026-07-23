@@ -42,6 +42,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ChevronsUpDown,
+  Filter,
 } from '@lucide/vue'
 import { Endge, TABLE_RUNTIME_ACTION_IDS } from '@endge/core'
 import {
@@ -67,7 +68,10 @@ import {
   openShadcnMenu,
   pointMenuAnchor,
 } from '@/ui/overlay/shadcn-menu-manager'
+import ShadcnInput from '@/ui/primitives/ShadcnInput.vue'
+import VueShadcnFilterRenderer from '@/ui/filter/VueShadcnFilterRenderer.vue'
 import ShadcnTableColumnManager from './ShadcnTableColumnManager.vue'
+import { ShadcnTableRuntimeContextKey } from './shadcn-table-runtime-context'
 
 defineOptions({ name: 'EndgeShadcnSfcDataTable' })
 
@@ -92,6 +96,15 @@ const defaultHiddenKeys = computed<string[]>(() => Array.isArray(props.defaultHi
 const pageSizeItems = computed<number[]>(() => Array.isArray(props.pageSizes) ? props.pageSizes : [10, 25, 50, 100])
 const runtimeEventBindings = computed(() => Array.isArray(props.eventBindings) ? props.eventBindings : [])
 const boundaryRegistry = inject(SFCVueBoundaryRegistryKey, null)
+const runtimeContext = inject(ShadcnTableRuntimeContextKey, null)
+const showSearch = computed(() => runtimeContext?.showSearch.value === true)
+const filterRuntime = computed(() => runtimeContext?.filterRuntime.value ?? null)
+const showFilters = computed(() => (
+  runtimeContext?.showFilters.value === true
+  && filterRuntime.value != null
+))
+const showRuntimeControls = computed(() => showSearch.value || showFilters.value)
+const filtersVisible = computed(() => runtimeContext?.filtersVisible.value === true)
 const scrollRoot = ref<HTMLElement | null>(null)
 const baseRows = shallowRef(copyRows(props.source))
 
@@ -193,6 +206,21 @@ const virtualRows = computed<VirtualTableRow[]>(() => {
     rowIndex: pageOffset.value + items[index]!.index,
   }))
 })
+
+function updateSearchValue(event: Event): void {
+  if (!runtimeContext)
+    return
+
+  runtimeContext.searchValue.value = (event.target as HTMLInputElement).value
+}
+
+function toggleFilters(): void {
+  if (!runtimeContext)
+    return
+
+  runtimeContext.filtersVisible.value = !runtimeContext.filtersVisible.value
+}
+
 const virtualRowContexts = computed(() => new Map(
   virtualRows.value.map(entry => [entry.row.id, entry] as const),
 ))
@@ -846,11 +874,49 @@ function menuItem(id: string, label: string, icon: string) {
     :style="{ '--endge-table-row-size': `${rowSize}px` }"
   >
     <div class="endge-shadcn-table__toolbar">
-      <div class="endge-shadcn-table__summary">
-        <span>{{ totalRowCount }}</span>
-        <span class="endge-shadcn-table__summary-label">строк</span>
+      <div v-if="showRuntimeControls" class="endge-shadcn-table__runtime-controls">
+        <ShadcnInput
+          v-if="showSearch"
+          class="endge-shadcn-input endge-shadcn-table__search"
+          type="search"
+          :value="runtimeContext?.searchValue.value ?? ''"
+          placeholder="Поиск…"
+          aria-label="Поиск по таблице"
+          @input="updateSearchValue"
+        />
+
+        <button
+          v-if="showFilters"
+          type="button"
+          class="endge-shadcn-button endge-shadcn-button--outline endge-shadcn-table__filter-toggle"
+          :data-active="filtersVisible ? 'true' : undefined"
+          :aria-expanded="filtersVisible"
+          :aria-label="filtersVisible ? 'Скрыть фильтры' : 'Показать фильтры'"
+          :title="filtersVisible ? 'Скрыть фильтры' : 'Показать фильтры'"
+          @click="toggleFilters"
+        >
+          <Filter :size="15" />
+        </button>
       </div>
-      <ShadcnTableColumnManager v-if="tableColumns.length > 1" :table="table" />
+
+      <div
+        class="endge-shadcn-table__toolbar-meta"
+        :class="{ 'endge-shadcn-table__toolbar-meta--after-controls': showRuntimeControls }"
+      >
+        <div class="endge-shadcn-table__summary">
+          <span>{{ totalRowCount }}</span>
+          <span class="endge-shadcn-table__summary-label">строк</span>
+        </div>
+        <ShadcnTableColumnManager v-if="tableColumns.length > 1" :table="table" />
+      </div>
+    </div>
+
+    <div
+      v-if="filterRuntime"
+      v-show="filtersVisible"
+      class="endge-shadcn-table__runtime-filters"
+    >
+      <VueShadcnFilterRenderer :runtime="filterRuntime" />
     </div>
 
     <div
